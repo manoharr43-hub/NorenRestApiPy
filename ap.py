@@ -7,10 +7,8 @@ from NorenRestApiPy import NorenApi
 # =========================
 class ShoonyaApiPy(NorenApi):
     def __init__(self):
-        super().__init__(
-            host='https://api.shoonya.com/NorenWS/',
-            websocket='wss://api.shoonya.com/NorenWSTP/'
-        )
+        # ✅ No extra arguments
+        super().__init__()
 
 api = ShoonyaApiPy()
 
