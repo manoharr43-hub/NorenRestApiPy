@@ -1,6 +1,5 @@
 streamlit
-yfinance
 pandas
-numpy
-scikit-learn
-streamlit-autorefresh
+pyotp
+NorenRestApiPy
+websocket-client
