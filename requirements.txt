@@ -1,5 +1,5 @@
 streamlit
 pandas
 pyotp
-NorenRestApiPy
 websocket-client
+git+https://github.com/Shoonya-Dev/NorenRestApiPy.git
