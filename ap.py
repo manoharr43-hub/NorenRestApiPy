@@ -1,215 +1,168 @@
 import streamlit as st
-import yfinance as yf
 import pandas as pd
-from datetime import datetime, timedelta
-from streamlit_autorefresh import st_autorefresh
+import pyotp
+from NorenRestApiPy import NorenApi
+from datetime import datetime
+
+# =============================
+# API CLASS
+# =============================
+class ShoonyaApiPy(NorenApi):
+    def __init__(self):
+        super().__init__(
+            host='https://api.shoonya.com/NorenWClientTP/',
+            websocket='wss://api.shoonya.com/NorenWSTP/'
+        )
+
+api = ShoonyaApiPy()
+
+# =============================
+# LOGIN
+# =============================
+def login():
+    try:
+        totp = pyotp.TOTP(st.secrets["shoonya"]["totp"]).now()
+
+        ret = api.login(
+            userid=st.secrets["shoonya"]["user_id"],
+            password=st.secrets["shoonya"]["password"],
+            twoFA=totp,
+            vendor_code=st.secrets["shoonya"]["vendor_code"],
+            api_secret=st.secrets["shoonya"]["api_secret"],
+            imei=st.secrets["shoonya"]["imei"]
+        )
+
+        return ret
+    except Exception as e:
+        st.error(f"Login Error: {e}")
+        return None
 
 # =============================
 # CONFIG
 # =============================
-st.set_page_config(page_title="🔥 NSE AI PRO TERMINAL", layout="wide")
-st_autorefresh(interval=60000, key="refresh")
+st.set_page_config(page_title="🔥 Shoonya Live Terminal", layout="wide")
+st.title("🚀 Shoonya Live Trading Terminal")
 
-st.title("🚀 NSE AI PRO TERMINAL")
-st.markdown("---")
-
-# =============================
-# STOCK LIST
-# =============================
-stocks = [
-    "RELIANCE","TCS","INFY","HDFCBANK","ICICIBANK","SBIN","ITC","LT",
-    "AXISBANK","BHARTIARTL","KOTAKBANK","MARUTI","M&M","TATAMOTORS",
-    "SUNPHARMA","DRREDDY","CIPLA","HCLTECH","WIPRO","TECHM",
-    "JSWSTEEL","TATASTEEL","HINDALCO"
-]
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
 # =============================
-# ANALYSIS ENGINE (UNCHANGED CORE LOGIC)
+# LOGIN BUTTON
 # =============================
-def analyze_data(df):
-    if df is None or len(df) < 20:
-        return None
+if not st.session_state.logged_in:
+    if st.button("🔐 Login to Shoonya"):
+        res = login()
+        if res:
+            st.success("Login Successful ✅")
+            st.session_state.logged_in = True
+        else:
+            st.error("Login Failed ❌")
+    st.stop()
+
+# =============================
+# STOCK LIST (NSE TOKENS)
+# =============================
+stocks = {
+    "RELIANCE": "2885",
+    "TCS": "11536",
+    "INFY": "1594",
+    "HDFCBANK": "1333",
+    "ICICIBANK": "4963",
+    "SBIN": "3045"
+}
+
+live_data = {}
+
+# =============================
+# WEBSOCKET CALLBACK
+# =============================
+def event_handler_quote_update(message):
+    token = message.get('tk')
+    price = message.get('lp')
+
+    for name, tk in stocks.items():
+        if tk == token:
+            live_data[name] = float(price)
+
+# =============================
+# START WEBSOCKET
+# =============================
+if st.button("▶ Start Live Feed"):
+
+    api.start_websocket(
+        order_update_callback=lambda x: None,
+        subscribe_callback=event_handler_quote_update,
+        socket_open_callback=lambda: print("Connected")
+    )
+
+    tokens = [f"NSE|{tk}" for tk in stocks.values()]
+    api.subscribe(tokens)
+
+    st.success("Live Feed Started 🚀")
+
+# =============================
+# EMA SIGNAL
+# =============================
+def get_signal(price_list):
+    if len(price_list) < 50:
+        return "WAIT"
+
+    df = pd.DataFrame(price_list, columns=["Close"])
 
     e20 = df['Close'].ewm(span=20).mean()
     e50 = df['Close'].ewm(span=50).mean()
 
-    vol = df['Volume']
-    avg_vol = vol.rolling(20).mean()
-
-    if pd.isna(avg_vol.iloc[-1]):
-        return None
-
-    trend = "CALL STRONG" if e20.iloc[-1] > e50.iloc[-1] else "PUT STRONG"
-
-    signal = "WAIT"
-    if e20.iloc[-1] > e50.iloc[-1] and vol.iloc[-1] > avg_vol.iloc[-1]:
-        signal = "🚀 STRONG BUY"
-    elif e20.iloc[-1] < e50.iloc[-1] and vol.iloc[-1] > avg_vol.iloc[-1]:
-        signal = "💀 STRONG SELL"
-
-    return trend, signal
+    if e20.iloc[-1] > e50.iloc[-1]:
+        return "🚀 BUY"
+    else:
+        return "💀 SELL"
 
 # =============================
-# BREAKOUT ENGINE (WITH FAILED LOGIC ADDED)
+# DISPLAY
 # =============================
-def breakout_engine(df, stock):
-    results = []
+st.subheader("📊 LIVE SIGNALS")
 
-    opening = df.between_time("09:15", "09:30")
-    if opening.empty:
-        return results
+table = []
 
-    high = opening['High'].max()
-    low = opening['Low'].min()
+for s in stocks:
+    if s in live_data:
+        price = live_data[s]
 
-    for i in range(1, len(df)-3):
+        if "history" not in st.session_state:
+            st.session_state.history = {}
 
-        prev = df.iloc[i-1]
-        curr = df.iloc[i]
-        t = df.index[i]
+        if s not in st.session_state.history:
+            st.session_state.history[s] = []
 
-        # ================= BUY BREAKOUT =================
-        if prev['Close'] <= high and curr['Close'] > high:
+        st.session_state.history[s].append(price)
 
-            future = df.iloc[i+1:i+4]
-            up = sum(future['Close'] > curr['Close'])
-            down = sum(future['Close'] <= curr['Close'])
+        signal = get_signal(st.session_state.history[s])
 
-            if up > down:
-                status = "🚀 CONFIRMED BUY"
-            else:
-                status = "⚠️ FAILED BUY → SELL"
+        table.append({
+            "Stock": s,
+            "Price": price,
+            "Signal": signal,
+            "Time": datetime.now().strftime("%H:%M:%S")
+        })
 
-            results.append({
-                "Time": t,
-                "Stock": stock,
-                "Type": status,
-                "Level": round(high,2)
-            })
-            break
-
-        # ================= SELL BREAKOUT =================
-        elif prev['Close'] >= low and curr['Close'] < low:
-
-            future = df.iloc[i+1:i+4]
-            down = sum(future['Close'] < curr['Close'])
-            up = sum(future['Close'] >= curr['Close'])
-
-            if down > up:
-                status = "💀 CONFIRMED SELL"
-            else:
-                status = "⚠️ FAILED SELL → BUY"
-
-            results.append({
-                "Time": t,
-                "Stock": stock,
-                "Type": status,
-                "Level": round(low,2)
-            })
-            break
-
-    return results
+df = pd.DataFrame(table)
+st.dataframe(df, use_container_width=True)
 
 # =============================
-# LIVE SCANNER
-# =============================
-if st.button("🔍 START LIVE SCANNER (9:15–3:30)"):
-
-    live_results = []
-    breakout_results = []
-
-    for s in stocks:
-        try:
-            df = yf.Ticker(s + ".NS").history(period="1d", interval="15m")
-
-            if df.empty:
-                continue
-
-            df = df.between_time("09:15", "15:30")
-
-            res = analyze_data(df)
-
-            if res:
-                live_results.append({
-                    "Stock": s,
-                    "Price": df['Close'].iloc[-1],
-                    "Trend": res[0],
-                    "Signal": res[1],
-                    "Time": df.index[-1].strftime("%H:%M")
-                })
-
-            breakout_results += breakout_engine(df, s)
-
-        except:
-            continue
-
-    breakout_results = sorted(breakout_results, key=lambda x: x["Time"])
-
-    for x in breakout_results:
-        x["Time"] = pd.to_datetime(x["Time"]).strftime("%H:%M")
-
-    st.subheader("📊 LIVE SIGNALS (9:15–3:30)")
-    st.dataframe(pd.DataFrame(live_results), use_container_width=True)
-
-    st.markdown("---")
-    st.subheader("🔥 SMART BREAKOUT (CONFIRMED + FAILED)")
-    st.dataframe(pd.DataFrame(breakout_results), use_container_width=True)
-
-# =============================
-# BACKTEST PANEL
+# PAPER TRADING MODE
 # =============================
 st.markdown("---")
+st.subheader("🧪 Paper Trading")
 
-bt_date = st.sidebar.date_input("📅 Select Backtest Date", datetime.now() - timedelta(days=1))
+if st.button("Simulate Trades"):
 
-if st.button("📊 RUN BACKTEST"):
+    trades = []
 
-    bt_signals = []
-    bt_breakout = []
+    for row in table:
+        if row["Signal"] == "🚀 BUY":
+            trades.append(f"BUY {row['Stock']} at {row['Price']}")
+        elif row["Signal"] == "💀 SELL":
+            trades.append(f"SELL {row['Stock']} at {row['Price']}")
 
-    for s in stocks:
-        try:
-            df = yf.Ticker(s + ".NS").history(
-                start=bt_date,
-                end=bt_date + timedelta(days=1),
-                interval="15m"
-            )
-
-            df = df.between_time("09:15", "15:30")
-
-            if df.empty:
-                continue
-
-            # SIGNALS
-            for i in range(20, len(df)):
-                sub = df.iloc[:i+1]
-                res = analyze_data(sub)
-
-                if res and res[1] != "WAIT":
-                    bt_signals.append({
-                        "Time": sub.index[-1],
-                        "Stock": s,
-                        "Signal": res[1]
-                    })
-
-            # BREAKOUT
-            bt_breakout += breakout_engine(df, s)
-
-        except:
-            continue
-
-    bt_breakout = sorted(bt_breakout, key=lambda x: x["Time"])
-    bt_signals = sorted(bt_signals, key=lambda x: x["Time"])
-
-    for x in bt_breakout:
-        x["Time"] = pd.to_datetime(x["Time"]).strftime("%H:%M")
-
-    for x in bt_signals:
-        x["Time"] = pd.to_datetime(x["Time"]).strftime("%H:%M")
-
-    st.subheader("📊 BACKTEST SIGNALS")
-    st.dataframe(pd.DataFrame(bt_signals), use_container_width=True)
-
-    st.markdown("---")
-    st.subheader("🔥 BACKTEST SMART BREAKOUT (CONFIRMED + FAILED)")
-    st.dataframe(pd.DataFrame(bt_breakout), use_container_width=True)
+    for t in trades:
+        st.write(t)
