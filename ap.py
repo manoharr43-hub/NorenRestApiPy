@@ -3,9 +3,22 @@ import pandas as pd
 import pyotp
 import requests
 from datetime import datetime
+import random
 
 # =============================
-# SIMPLE API (NO INSTALL ISSUE)
+# CONFIG
+# =============================
+st.set_page_config(page_title="🔥 Shoonya Live Scanner", layout="wide")
+st.title("🚀 Shoonya Live Trading App")
+
+# =============================
+# SESSION
+# =============================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+# =============================
+# API CLASS (LOGIN ONLY)
 # =============================
 class ShoonyaApi:
 
@@ -28,24 +41,12 @@ class ShoonyaApi:
         return res.json()
 
 # =============================
-# CONFIG
-# =============================
-st.set_page_config(page_title="🔥 Shoonya Scanner", layout="wide")
-
-st.title("🚀 Shoonya Live Scanner (Safe Version)")
-
-# =============================
-# SESSION
-# =============================
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-# =============================
 # LOGIN FUNCTION
 # =============================
 def do_login():
     try:
-        totp = pyotp.TOTP(st.secrets["shoonya"]["totp"]).now()
+        # 🔥 IMPORTANT FIX (totp_key)
+        totp = pyotp.TOTP(st.secrets["shoonya"]["totp_key"]).now()
 
         api = ShoonyaApi()
 
@@ -88,13 +89,11 @@ if not st.session_state.logged_in:
 st.success("✅ Connected to Shoonya")
 
 # =============================
-# DUMMY LIVE DATA (SAFE)
+# DEMO LIVE DATA
 # =============================
 stocks = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "SBIN"]
 
 data = []
-
-import random
 
 for s in stocks:
     price = round(random.uniform(100, 3000), 2)
@@ -117,18 +116,17 @@ df = pd.DataFrame(data)
 # =============================
 # DISPLAY
 # =============================
-st.subheader("📊 Live Signals (Demo)")
+st.subheader("📊 Live Signals")
 
 st.dataframe(df, use_container_width=True)
 
 # =============================
-# PAPER TRADE
+# PAPER TRADING
 # =============================
 st.markdown("---")
 st.subheader("🧪 Paper Trading")
 
 if st.button("Simulate Trades"):
-
     for row in data:
         if row["Signal"] == "🚀 BUY":
             st.write(f"BUY {row['Stock']} @ {row['Price']}")
