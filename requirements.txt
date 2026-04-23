@@ -1,4 +1,5 @@
 streamlit
-pandas
 pyotp
+NorenRestApiPy
 requests
+pandas
