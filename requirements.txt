@@ -1,5 +1,5 @@
-streamlit
-pandas
-pyotp
-websocket-client
-git+https://github.com/Shoonya-Dev/NorenRestApiPy.git
+streamlit==1.33.0
+pandas==2.2.2
+pyotp==2.9.0
+websocket-client==1.8.0
+git+https://github.com/Shoonya-Dev/NorenRestApiPy.git@master
