@@ -1,133 +1,53 @@
 import streamlit as st
-import pandas as pd
 import pyotp
-import requests
-from datetime import datetime
-import random
+from NorenRestApiPy import NorenApi
 
-# =============================
-# CONFIG
-# =============================
-st.set_page_config(page_title="🔥 Shoonya Live Scanner", layout="wide")
-st.title("🚀 Shoonya Live Trading App")
-
-# =============================
-# SESSION
-# =============================
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-# =============================
-# API CLASS
-# =============================
-class ShoonyaApi:
-
+# =========================
+# SHOONYA API CLASS
+# =========================
+class ShoonyaApiPy(NorenApi):
     def __init__(self):
-        self.host = "https://api.shoonya.com/NorenWClientTP/"
-
-    def login(self, user, pwd, totp, vc, apikey, imei):
-        url = self.host + "QuickAuth"
-
-        data = {
-            "uid": user,
-            "pwd": pwd,
-            "factor2": totp,
-            "vc": vc,
-            "appkey": apikey,
-            "imei": imei
-        }
-
-        res = requests.post(url, data=data)
-        return res.json()
-
-# =============================
-# LOGIN FUNCTION
-# =============================
-def do_login():
-    try:
-        # ✅ FINAL FIX (totp)
-        totp = pyotp.TOTP(st.secrets["shoonya"]["totp"]).now()
-
-        api = ShoonyaApi()
-
-        res = api.login(
-            st.secrets["shoonya"]["user_id"],
-            st.secrets["shoonya"]["password"],
-            totp,
-            st.secrets["shoonya"]["vendor_code"],
-            st.secrets["shoonya"]["api_secret"],
-            st.secrets["shoonya"]["imei"]
+        super().__init__(
+            host='https://api.shoonya.com/NorenWS/',
+            websocket='wss://api.shoonya.com/NorenWSTP/'
         )
 
-        return res
+api = ShoonyaApiPy()
+
+# =========================
+# STREAMLIT UI
+# =========================
+st.title("📊 Shoonya Trading Login App")
+
+# =========================
+# INPUTS (DO NOT HARDCODE)
+# =========================
+user_id = st.text_input("User ID")
+password = st.text_input("Password", type="password")
+vendor_code = st.text_input("Vendor Code")
+api_secret = st.text_input("API Secret")
+imei = st.text_input("IMEI")
+
+# =========================
+# LOGIN BUTTON
+# =========================
+if st.button("Login"):
+
+    try:
+        # 🔥 AUTO TOTP GENERATION (IMPORTANT FIX)
+        totp = pyotp.TOTP(api_secret).now()
+
+        api.login(
+            userid=user_id,
+            password=password,
+            twoFA=totp,
+            vendor_code=vendor_code,
+            imei=imei
+        )
+
+        st.success("✅ Login Success!")
+
+        st.write("TOTP Generated:", totp)
+
     except Exception as e:
         st.error(f"Login Error: {e}")
-        return None
-
-# =============================
-# LOGIN UI
-# =============================
-if not st.session_state.logged_in:
-
-    st.warning("🔐 Please Login to Shoonya")
-
-    if st.button("Login Now"):
-        res = do_login()
-
-        if res and res.get("stat") == "Ok":
-            st.success("Login Successful ✅")
-            st.session_state.logged_in = True
-            st.rerun()
-        else:
-            st.error("Login Failed ❌")
-
-    st.stop()
-
-# =============================
-# AFTER LOGIN
-# =============================
-st.success("✅ Connected to Shoonya")
-
-# =============================
-# DEMO LIVE DATA
-# =============================
-stocks = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "SBIN"]
-
-data = []
-
-for s in stocks:
-    price = round(random.uniform(100, 3000), 2)
-
-    signal = "WAIT"
-    if price % 2 == 0:
-        signal = "🚀 BUY"
-    else:
-        signal = "💀 SELL"
-
-    data.append({
-        "Stock": s,
-        "Price": price,
-        "Signal": signal,
-        "Time": datetime.now().strftime("%H:%M:%S")
-    })
-
-df = pd.DataFrame(data)
-
-# =============================
-# DISPLAY
-# =============================
-st.subheader("📊 Live Signals")
-st.dataframe(df, use_container_width=True)
-
-# =============================
-# PAPER TRADING
-# =============================
-st.markdown("---")
-st.subheader("🧪 Paper Trading")
-
-if st.button("Simulate Trades"):
-    for row in data:
-        if row["Signal"] == "🚀 BUY":
-            st.write(f"BUY {row['Stock']} @ {row['Price']}")
-        else:
-            st.write(f"SELL {row['Stock']} @ {row['Price']}")
