@@ -18,7 +18,7 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 # =============================
-# API CLASS (LOGIN ONLY)
+# API CLASS
 # =============================
 class ShoonyaApi:
 
@@ -45,8 +45,8 @@ class ShoonyaApi:
 # =============================
 def do_login():
     try:
-        # 🔥 IMPORTANT FIX (totp_key)
-        totp = pyotp.TOTP(st.secrets["shoonya"]["totp_key"]).now()
+        # ✅ FINAL FIX (totp)
+        totp = pyotp.TOTP(st.secrets["shoonya"]["totp"]).now()
 
         api = ShoonyaApi()
 
@@ -117,7 +117,6 @@ df = pd.DataFrame(data)
 # DISPLAY
 # =============================
 st.subheader("📊 Live Signals")
-
 st.dataframe(df, use_container_width=True)
 
 # =============================
