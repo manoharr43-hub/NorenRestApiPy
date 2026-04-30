@@ -1,55 +1,98 @@
 import streamlit as st
-import pyotp
-from NorenRestApiPy import NorenApi
+import requests
 
-# =========================
-# SHOONYA API CLASS
-# =========================
-class ShoonyaApiPy(NorenApi):
-    def __init__(self):
-        # ✅ No extra arguments
-        super().__init__()
+=========================
 
-api = ShoonyaApiPy()
+CONFIG
 
-# =========================
-# STREAMLIT UI
-# =========================
-st.title("📊 Shoonya Trading Login App")
+=========================
 
-# =========================
-# INPUTS (DO NOT HARDCODE)
-# =========================
-user_id = st.text_input("User ID")
-password = st.text_input("Password", type="password")
-vendor_code = st.text_input("Vendor Code")
-api_secret = st.text_input("API Secret")   # broker provided
-imei = st.text_input("IMEI")
-totp_key = st.text_input("TOTP Secret Key")  # from QR code
+API_KEY = "YOUR_API_KEY_HERE"
+RADIUS = 3000
 
-# =========================
-# LOGIN BUTTON
-# =========================
-if st.button("Login"):
+st.set_page_config(page_title="Nearby Finder PRO", layout="wide")
+st.title("📍 Nearby Finder PRO")
 
-    try:
-        # ✅ Generate current OTP from TOTP secret
-        totp = pyotp.TOTP(totp_key).now()
+=========================
 
-        ret = api.login(
-            userid=user_id,
-            password=password,
-            twoFA=totp,              # current OTP
-            vendor_code=vendor_code,
-            api_secret=api_secret,   # broker API secret
-            imei=imei
-        )
+AUTO LOCATION (IP BASED)
 
-        if ret and ret.get("stat") == "Ok":
-            st.success("✅ Login Success!")
-            st.write("TOTP Generated:", totp)
-        else:
-            st.error(f"Login Failed: {ret}")
+=========================
 
-    except Exception as e:
-        st.error(f"Login Error: {e}")
+def get_my_location():
+try:
+res = requests.get("https://ipinfo.io").json()
+loc = res["loc"].split(",")
+return float(loc[0]), float(loc[1])
+except:
+return None, None
+
+lat, lng = get_my_location()
+
+if lat and lng:
+st.success(f"Detected Location: {lat}, {lng}")
+else:
+st.warning("Location detect avvaledu, manual enter cheyyandi")
+lat = st.number_input("Latitude", value=17.3850)
+lng = st.number_input("Longitude", value=78.4867)
+
+=========================
+
+DISTANCE CALCULATION
+
+=========================
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+return ((lat1 - lat2)**2 + (lon1 - lon2)**2)**0.5 * 111
+
+=========================
+
+GET PLACES
+
+=========================
+
+def get_places(place_type):
+url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lng}&radius={RADIUS}&type={place_type}&key={API_KEY}"
+response = requests.get(url).json()
+
+places = []
+
+if "results" in response:
+    for place in response["results"]:
+        name = place.get("name")
+        location = place["geometry"]["location"]
+        dist = calculate_distance(lat, lng, location["lat"], location["lng"])
+
+        places.append({
+            "name": name,
+            "distance": round(dist, 2)
+        })
+
+# Sort by distance
+places = sorted(places, key=lambda x: x["distance"])
+return places[:10]
+
+=========================
+
+UI BUTTON
+
+=========================
+
+if st.button("🔍 Find Nearby Places"):
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.subheader("🍽 Restaurants")
+    for p in get_places("restaurant"):
+        st.write(f"📍 {p['name']} - {p['distance']} km")
+
+with col2:
+    st.subheader("⛽ Petrol Pumps")
+    for p in get_places("gas_station"):
+        st.write(f"📍 {p['name']} - {p['distance']} km")
+
+with col3:
+    st.subheader("🏨 Lodges")
+    for p in get_places("lodging"):
+        st.write(f"📍 {p['name']} - {p['distance']} km")
