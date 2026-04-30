@@ -1,17 +1,20 @@
 import streamlit as st
 import requests
+import pandas as pd
+import folium
+from streamlit_folium import st_folium
 
 CONFIG
 
 API_KEY = "YOUR_API_KEY_HERE"
 RADIUS = 3000
 
-st.set_page_config(page_title="Nearby Finder PRO", layout="wide")
-st.title("📍 Nearby Finder PRO")
+st.set_page_config(page_title="Nearby Finder ULTRA", layout="wide")
+st.title("🚀 Nearby Finder ULTRA PRO")
 
-Get user location (IP based)
+Get location
 
-def get_my_location():
+def get_location():
 try:
 res = requests.get("https://ipinfo.io").json()
 loc = res.get("loc", "17.3850,78.4867").split(",")
@@ -19,58 +22,83 @@ return float(loc[0]), float(loc[1])
 except:
 return 17.3850, 78.4867
 
-lat, lng = get_my_location()
+lat, lng = get_location()
 
-st.success(f"📍 Location: {lat}, {lng}")
+Manual override
 
-Distance calculation
+st.sidebar.header("📍 Location Settings")
+lat = st.sidebar.number_input("Latitude", value=lat)
+lng = st.sidebar.number_input("Longitude", value=lng)
 
-def calculate_distance(lat1, lon1, lat2, lon2):
+Distance calc
+
+def calc_dist(lat1, lon1, lat2, lon2):
 return ((lat1 - lat2)**2 + (lon1 - lon2)**2)**0.5 * 111
 
 Get places
 
 def get_places(place_type):
 url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lng}&radius={RADIUS}&type={place_type}&key={API_KEY}"
+data = requests.get(url).json()
 
-response = requests.get(url)
-data = response.json()
-
-places = []
+results = []
 
 if "results" in data:
-    for place in data["results"]:
-        name = place.get("name", "No Name")
-        location = place["geometry"]["location"]
+    for p in data["results"]:
+        name = p.get("name", "No Name")
+        rating = p.get("rating", 0)
+        loc = p["geometry"]["location"]
 
-        dist = calculate_distance(lat, lng, location["lat"], location["lng"])
+        dist = calc_dist(lat, lng, loc["lat"], loc["lng"])
 
-        places.append({
-            "name": name,
-            "distance": round(dist, 2)
+        results.append({
+            "Name": name,
+            "Rating": rating,
+            "Distance (km)": round(dist, 2),
+            "Lat": loc["lat"],
+            "Lng": loc["lng"]
         })
 
-places = sorted(places, key=lambda x: x["distance"])
-return places[:10]
+df = pd.DataFrame(results)
+df = df.sort_values("Distance (km)").head(10)
 
-Button action
+return df
 
-if st.button("🔍 Find Nearby Places"):
+MAIN BUTTON
 
-col1, col2 = st.columns(2)
+if st.button("🔍 Find Nearby"):
 
-with col1:
-    st.subheader("🍽 Restaurants")
-    for p in get_places("restaurant"):
-        st.write(f"{p['name']} - {p['distance']} km")
+types = {
+    "Restaurants 🍽": "restaurant",
+    "Petrol Pumps ⛽": "gas_station",
+    "Lodges 🏨": "lodging"
+}
 
-    st.subheader("⛽ Petrol Pumps")
-    for p in get_places("gas_station"):
-        st.write(f"{p['name']} - {p['distance']} km")
+for title, t in types.items():
 
-with col2:
-    st.subheader("🏨 Lodges")
-    for p in get_places("lodging"):
-        st.write(f"{p['name']} - {p['distance']} km")
+    st.subheader(title)
+    df = get_places(t)
 
-st.caption("Nearby Finder App")
+    st.dataframe(df[["Name", "Rating", "Distance (km)"]])
+
+    # MAP
+    m = folium.Map(location=[lat, lng], zoom_start=13)
+
+    # user marker
+    folium.Marker(
+        [lat, lng],
+        popup="You",
+        icon=folium.Icon(color="red")
+    ).add_to(m)
+
+    # places
+    for _, row in df.iterrows():
+        folium.Marker(
+            [row["Lat"], row["Lng"]],
+            popup=f"{row['Name']} ({row['Distance (km)']} km)",
+            icon=folium.Icon(color="blue")
+        ).add_to(m)
+
+    st_folium(m, width=700, height=400)
+
+st.caption("ULTRA PRO Nearby App 🚀")
