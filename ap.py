@@ -15,26 +15,21 @@ st.title("📍 Nearby Finder PRO")
 
 =========================
 
-AUTO LOCATION (IP BASED)
+GET USER LOCATION (IP BASED)
 
 =========================
 
 def get_my_location():
 try:
 res = requests.get("https://ipinfo.io").json()
-loc = res["loc"].split(",")
+loc = res.get("loc", "17.3850,78.4867").split(",")
 return float(loc[0]), float(loc[1])
 except:
-return None, None
+return 17.3850, 78.4867
 
 lat, lng = get_my_location()
 
-if lat and lng:
-st.success(f"Detected Location: {lat}, {lng}")
-else:
-st.warning("Location detect avvaledu, manual enter cheyyandi")
-lat = st.number_input("Latitude", value=17.3850)
-lng = st.number_input("Longitude", value=78.4867)
+st.success(f"📍 Location: {lat}, {lng}")
 
 =========================
 
@@ -47,20 +42,23 @@ return ((lat1 - lat2)**2 + (lon1 - lon2)**2)**0.5 * 111
 
 =========================
 
-GET PLACES
+GET PLACES FROM GOOGLE API
 
 =========================
 
 def get_places(place_type):
 url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lng}&radius={RADIUS}&type={place_type}&key={API_KEY}"
-response = requests.get(url).json()
+
+response = requests.get(url)
+data = response.json()
 
 places = []
 
-if "results" in response:
-    for place in response["results"]:
-        name = place.get("name")
+if "results" in data:
+    for place in data["results"]:
+        name = place.get("name", "No Name")
         location = place["geometry"]["location"]
+
         dist = calculate_distance(lat, lng, location["lat"], location["lng"])
 
         places.append({
@@ -68,13 +66,14 @@ if "results" in response:
             "distance": round(dist, 2)
         })
 
-# Sort by distance
+# sort by nearest
 places = sorted(places, key=lambda x: x["distance"])
+
 return places[:10]
 
 =========================
 
-UI BUTTON
+BUTTON ACTION
 
 =========================
 
@@ -96,3 +95,6 @@ with col3:
     st.subheader("🏨 Lodges")
     for p in get_places("lodging"):
         st.write(f"📍 {p['name']} - {p['distance']} km")
+
+st.markdown("---")
+st.caption("Made with ❤️ using Streamlit")
