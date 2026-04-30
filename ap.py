@@ -4,15 +4,11 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 
-CONFIG
-
 API_KEY = "YOUR_API_KEY_HERE"
 RADIUS = 3000
 
 st.set_page_config(page_title="Nearby Finder ULTRA", layout="wide")
-st.title("🚀 Nearby Finder ULTRA PRO")
-
-Get location
+st.title("Nearby Finder ULTRA")
 
 def get_location():
 try:
@@ -24,18 +20,11 @@ return 17.3850, 78.4867
 
 lat, lng = get_location()
 
-Manual override
-
-st.sidebar.header("📍 Location Settings")
 lat = st.sidebar.number_input("Latitude", value=lat)
 lng = st.sidebar.number_input("Longitude", value=lng)
 
-Distance calc
-
 def calc_dist(lat1, lon1, lat2, lon2):
 return ((lat1 - lat2)**2 + (lon1 - lon2)**2)**0.5 * 111
-
-Get places
 
 def get_places(place_type):
 url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lng}&radius={RADIUS}&type={place_type}&key={API_KEY}"
@@ -54,24 +43,23 @@ if "results" in data:
         results.append({
             "Name": name,
             "Rating": rating,
-            "Distance (km)": round(dist, 2),
+            "Distance": round(dist, 2),
             "Lat": loc["lat"],
             "Lng": loc["lng"]
         })
 
 df = pd.DataFrame(results)
-df = df.sort_values("Distance (km)").head(10)
+if not df.empty:
+    df = df.sort_values("Distance").head(10)
 
 return df
 
-MAIN BUTTON
-
-if st.button("🔍 Find Nearby"):
+if st.button("Find Nearby"):
 
 types = {
-    "Restaurants 🍽": "restaurant",
-    "Petrol Pumps ⛽": "gas_station",
-    "Lodges 🏨": "lodging"
+    "Restaurants": "restaurant",
+    "Petrol Pumps": "gas_station",
+    "Lodges": "lodging"
 }
 
 for title, t in types.items():
@@ -79,26 +67,21 @@ for title, t in types.items():
     st.subheader(title)
     df = get_places(t)
 
-    st.dataframe(df[["Name", "Rating", "Distance (km)"]])
+    if not df.empty:
+        st.dataframe(df[["Name", "Rating", "Distance"]])
 
-    # MAP
-    m = folium.Map(location=[lat, lng], zoom_start=13)
+        m = folium.Map(location=[lat, lng], zoom_start=13)
 
-    # user marker
-    folium.Marker(
-        [lat, lng],
-        popup="You",
-        icon=folium.Icon(color="red")
-    ).add_to(m)
+        folium.Marker([lat, lng], popup="You").add_to(m)
 
-    # places
-    for _, row in df.iterrows():
-        folium.Marker(
-            [row["Lat"], row["Lng"]],
-            popup=f"{row['Name']} ({row['Distance (km)']} km)",
-            icon=folium.Icon(color="blue")
-        ).add_to(m)
+        for _, row in df.iterrows():
+            folium.Marker(
+                [row["Lat"], row["Lng"]],
+                popup=f"{row['Name']} ({row['Distance']} km)"
+            ).add_to(m)
 
-    st_folium(m, width=700, height=400)
+        st_folium(m, width=700, height=400)
+    else:
+        st.write("No data found")
 
-st.caption("ULTRA PRO Nearby App 🚀")
+st.write("App Ready")
