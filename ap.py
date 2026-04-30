@@ -1,11 +1,7 @@
 import streamlit as st
 import requests
 
-=========================
-
 CONFIG
-
-=========================
 
 API_KEY = "YOUR_API_KEY_HERE"
 RADIUS = 3000
@@ -13,11 +9,7 @@ RADIUS = 3000
 st.set_page_config(page_title="Nearby Finder PRO", layout="wide")
 st.title("📍 Nearby Finder PRO")
 
-=========================
-
-GET USER LOCATION (IP BASED)
-
-=========================
+Get user location (IP based)
 
 def get_my_location():
 try:
@@ -31,20 +23,12 @@ lat, lng = get_my_location()
 
 st.success(f"📍 Location: {lat}, {lng}")
 
-=========================
-
-DISTANCE CALCULATION
-
-=========================
+Distance calculation
 
 def calculate_distance(lat1, lon1, lat2, lon2):
 return ((lat1 - lat2)**2 + (lon1 - lon2)**2)**0.5 * 111
 
-=========================
-
-GET PLACES FROM GOOGLE API
-
-=========================
+Get places
 
 def get_places(place_type):
 url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lng}&radius={RADIUS}&type={place_type}&key={API_KEY}"
@@ -66,35 +50,27 @@ if "results" in data:
             "distance": round(dist, 2)
         })
 
-# sort by nearest
 places = sorted(places, key=lambda x: x["distance"])
-
 return places[:10]
 
-=========================
-
-BUTTON ACTION
-
-=========================
+Button action
 
 if st.button("🔍 Find Nearby Places"):
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("🍽 Restaurants")
     for p in get_places("restaurant"):
-        st.write(f"📍 {p['name']} - {p['distance']} km")
+        st.write(f"{p['name']} - {p['distance']} km")
 
-with col2:
     st.subheader("⛽ Petrol Pumps")
     for p in get_places("gas_station"):
-        st.write(f"📍 {p['name']} - {p['distance']} km")
+        st.write(f"{p['name']} - {p['distance']} km")
 
-with col3:
+with col2:
     st.subheader("🏨 Lodges")
     for p in get_places("lodging"):
-        st.write(f"📍 {p['name']} - {p['distance']} km")
+        st.write(f"{p['name']} - {p['distance']} km")
 
-st.markdown("---")
-st.caption("Made with ❤️ using Streamlit")
+st.caption("Nearby Finder App")
