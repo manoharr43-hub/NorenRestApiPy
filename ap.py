@@ -1,48 +1,60 @@
-import requests
+import pandas as pd
 import sqlite3
+import requests
 from datetime import datetime, timedelta
 
 # -------------------------------
-# Database Connection
+# Step 1: Import Excel → SQLite
 # -------------------------------
-def get_due_customers(db_path="customers.db"):
-    conn = sqlite3.connect(db_path)
+def import_excel_to_sqlite(excel_file="Festive Camp Data.xlsx", db_file="customers.db"):
+    df = pd.read_excel(excel_file)
+    conn = sqlite3.connect(db_file)
+    df.to_sql("customers", conn, if_exists="replace", index=False)
+    conn.close()
+    print("✅ Excel data imported into SQLite successfully.")
+
+# -------------------------------
+# Step 2: Fetch Customers Due Tomorrow
+# -------------------------------
+def get_due_customers(db_file="customers.db"):
+    conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    cursor.execute("SELECT owner_name, mobile, vehicle_no FROM customers WHERE service_date=?", (tomorrow,))
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%m/%d/%Y")  # Match Excel date format
+    cursor.execute("SELECT First_Name, Last_Name, Mobile_Number, Model_Name, License_Number, Next_Service_Date FROM customers WHERE Next_Service_Date=?", (tomorrow,))
     rows = cursor.fetchall()
     conn.close()
     return rows
 
 # -------------------------------
-# SMS Gateway Integration (Airtel/BSNL/Jio)
+# Step 3: SMS Gateway Integration
 # -------------------------------
 def send_sms(mobile, message):
-    url = "https://sms.airtel.in/api/send"   # Replace with BSNL/Jio URL if needed
+    url = "https://sms.airtel.in/api/send"   # Replace with BSNL/Jio if needed
     payload = {
-        "username": "YOUR_USER",     # Telco credentials
+        "username": "YOUR_USER",
         "password": "YOUR_PASS",
-        "senderid": "SERVCE",        # Approved DLT Sender ID
+        "senderid": "SERVCE",
         "message": message,
         "mobile": mobile
     }
     try:
         response = requests.post(url, data=payload)
-        print("SMS Response:", response.json())
+        print("📩 SMS Response:", response.json())
     except Exception as e:
-        print("Error sending SMS:", e)
+        print("❌ Error sending SMS:", e)
 
 # -------------------------------
-# Reminder Logic
+# Step 4: Reminder Logic
 # -------------------------------
 def send_reminders():
     customers = get_due_customers()
-    for owner, mobile, vehicle in customers:
-        message = f"Reminder: Dear {owner}, your vehicle {vehicle} service is due tomorrow!"
+    for first, last, mobile, model, license_no, service_date in customers:
+        message = f"Reminder: Dear {first} {last}, your vehicle {model} ({license_no}) service is due on {service_date}."
         send_sms(mobile, message)
 
 # -------------------------------
-# Main Execution
+# Step 5: Main Execution
 # -------------------------------
 if __name__ == "__main__":
-    send_reminders()
+    import_excel_to_sqlite()   # Run once to import Excel data
+    send_reminders()           # Send reminders for tomorrow
