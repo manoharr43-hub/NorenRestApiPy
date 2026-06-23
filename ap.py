@@ -1,96 +1,81 @@
-import streamlit as st
-import pandas as pd
-import sqlite3
 import requests
-from datetime import datetime, timedelta
+import time
+import pandas as pd
 
-# -------------------------------
-# Step 1: Import Excel → SQLite
-# -------------------------------
-def import_excel_to_sqlite(uploaded_file, db_file="customers.db"):
-    df = pd.read_excel(uploaded_file, engine="openpyxl")
-    conn = sqlite3.connect(db_file)
-    df.to_sql("customers", conn, if_exists="replace", index=False)
-    conn.close()
-    return df
-
-# -------------------------------
-# Step 2: Fetch All Customers (No Date Filter)
-# -------------------------------
-def get_all_customers(db_file="customers.db"):
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT "Zonal Office", "Area Office", "Dealer Name", "Asset Number",
-               "Model Name", "License Number", "Mobile Number",
-               "First Name", "Last Name", "Last Service Date",
-               "Last Service Type", "Sale Date", "FSC 4 Date",
-               "FSC 5 Date", "Next Service Date", "Turn Up Flag"
-        FROM customers
-    """)
-    rows = cursor.fetchall()
-    conn.close()
-    return rows
-
-# -------------------------------
-# Step 3: Fetch Customers Due Tomorrow
-# -------------------------------
-def get_due_customers(db_file="customers.db"):
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%m/%d/%Y")
-    cursor.execute("""
-        SELECT "First Name", "Last Name", "Mobile Number", "Model Name", "License Number", "Next Service Date"
-        FROM customers WHERE "Next Service Date"=?""", (tomorrow,))
-    rows = cursor.fetchall()
-    conn.close()
-    return rows
-
-# -------------------------------
-# Step 4: SMS Gateway Integration
-# -------------------------------
-def send_sms(mobile, message):
-    url = "https://sms.airtel.in/api/send"   # Replace with BSNL/Jio URL if needed
-    payload = {
-        "username": "YOUR_USER",
-        "password": "YOUR_PASS",
-        "senderid": "SERVCE",
-        "message": message,
-        "mobile": mobile
+def fetch_nse_option_chain(symbol="NIFTY"):
+    # 1. బ్రౌజర్ లాగా నటించడానికి Headers సెట్ చేయడం
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br"
     }
+
+    # 2. ఒకే సెషన్ (Session) ని మెయింటైన్ చేయడం
+    session = requests.Session()
+    session.headers.update(headers)
+
     try:
-        response = requests.post(url, data=payload)
-        return response.json()
-    except Exception as e:
-        return {"error": str(e)}
-
-# -------------------------------
-# Step 5: Streamlit UI
-# -------------------------------
-st.set_page_config(page_title="🚗 Vehicle Service Reminder", layout="wide")
-st.title("🔧 Vehicle Service Reminder App")
-
-uploaded_file = st.file_uploader("Upload Festive Camp Data Excel", type=["xlsx"])
-
-if uploaded_file:
-    df = import_excel_to_sqlite(uploaded_file)
-    st.success("✅ Excel data imported successfully!")
-    st.dataframe(df.head())
-
-    if st.button("📋 Show All Customers"):
-        customers = get_all_customers()
-        st.write("Total Customers:", len(customers))
-        st.dataframe(df)  # Show full table
-
-    if st.button("📩 Send Reminders for Tomorrow"):
-        customers = get_due_customers()
-        if customers:
-            for first, last, mobile, model, license_no, service_date in customers:
-                msg = f"Reminder: Dear {first} {last}, your vehicle {model} ({license_no}) service is due on {service_date}."
-                result = send_sms(mobile, msg)
-                st.write(f"Sent to {mobile}: {result}")
-            st.success("✅ All reminders sent successfully!")
+        # 3. ముందుగా NSE హోమ్ పేజీకి వెళ్లి Cookies సేవ్ చేసుకోవడం (బైపాస్ ట్రిక్)
+        session.get("https://www.nseindia.com", timeout=10)
+        time.sleep(1) # సర్వర్ మీద లోడ్ పడకుండా 1 సెకను గ్యాప్
+        
+        # 4. ఆప్షన్ చైన్ API ని హిట్ చేయడం
+        url = f"https://www.nseindia.com/api/option-chain-indices?symbol={symbol}"
+        response = session.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            records = data.get('records', {}).get('data', [])
+            
+            # 5. వచ్చిన డేటాని టేబుల్ (DataFrame) ఫార్మాట్ లోకి మార్చడం
+            chain_data = []
+            for item in records:
+                strike = item.get('strikePrice')
+                ce = item.get('CE', {})
+                pe = item.get('PE', {})
+                
+                chain_data.append({
+                    "CE OI": ce.get('openInterest', 0),
+                    "CE Volume": ce.get('totalTradedVolume', 0),
+                    "CE LTP": ce.get('lastPrice', 0),
+                    "Strike Price": strike,
+                    "PE LTP": pe.get('lastPrice', 0),
+                    "PE Volume": pe.get('totalTradedVolume', 0),
+                    "PE OI": pe.get('openInterest', 0)
+                })
+                
+            df = pd.DataFrame(chain_data)
+            return df
         else:
-            st.warning("No customers found for tomorrow’s service date.")
-else:
-    st.info("Please upload your Excel file to begin.")
+            print(f"❌ Error: {response.status_code} - సర్వర్ బ్లాక్ చేసింది లేదా డేటా రాలేదు.")
+            return None
+            
+    except Exception as e:
+        print(f"❌ కనెక్షన్ ఫెయిల్ అయ్యింది: {e}")
+        return None
+
+# లైవ్ మార్కెట్ లో ప్రతి 5 సెకన్లకు ఒకసారి డేటా అప్డేట్ అవ్వడానికి Loop
+if __name__ == "__main__":
+    symbol_to_track = "NIFTY"  # మీరు BANKNIFTY కావాలంటే ఇక్కడ మార్చుకోవచ్చు
+    
+    print(f"🚀 {symbol_to_track} ఆప్షన్ చైన్ స్కానర్ స్టార్ట్ అయ్యింది. ఆపడానికి 'Ctrl + C' నొక్కండి.")
+    print("-" * 70)
+    
+    while True:
+        try:
+            print(f"\n⏳ డేటా తీసుకువస్తోంది... సమయం: {time.strftime('%H:%M:%S')}")
+            df = fetch_nse_option_chain(symbol_to_track)
+            
+            if df is not None:
+                # వందల కొద్దీ స్ట్రైక్స్ వస్తాయి కాబట్టి, సపోర్ట్ కోసం మధ్యలో ఉన్న కొన్ని స్ట్రైక్స్ మాత్రమే ప్రింట్ చేద్దాం
+                # నచ్చితే మొత్తం చూడటానికి print(df) వాడొచ్చు
+                print(df.dropna().head(10).to_string(index=False))
+                
+                # డేటాని ఎక్సెల్ ఫైల్ గా సేవ్ చేయాలనుకుంటే కింద ఉన్న లైన్ వాడొచ్చు (కానీ లైవ్ లో వద్దు)
+                # df.to_excel("Live_Options_Data.xlsx", index=False)
+                
+            time.sleep(5) # ⚠️ ప్రతి రిక్వెస్ట్ కి మధ్యలో 5 సెకన్ల గ్యాప్ (బ్లాక్ అవ్వకుండా ఉండటానికి)
+            
+        except KeyboardInterrupt:
+            print("\n🛑 స్కానర్ ఆపబడింది.")
+            break
