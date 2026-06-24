@@ -2,9 +2,14 @@ import streamlit as st
 import urllib.parse as urlparse
 from fyers_apiv3 import fyersModel
 
-# 1. మీ ఫయర్స్ యాప్ వివరాలు (మీ ఐడీలు ఇక్కడే ఇచ్చాను)
-client_id = "1VFMW4AYYQ-200"
-secret_key = "ztI67zCj3BfPDbhy"
+# 1. Streamlit Secrets నుండి సురక్షితంగా ఐడీలను తీసుకోవడం
+try:
+    client_id = st.secrets["FYERS_CLIENT_ID"]
+    secret_key = st.secrets["FYERS_SECRET_KEY"]
+except KeyError:
+    st.error("కొత్త సీక్రెట్స్ ఇంకా అప్‌డేట్ కాలేదు. దయచేసి Streamlit సెట్టింగ్స్ చెక్ చేయండి.")
+    st.stop()
+
 redirect_uri = "https://127.0.0.1"
 response_type = "code"
 grant_type = "authorization_code"
@@ -19,28 +24,24 @@ session = fyersModel.SessionModel(
 )
 
 # ==========================================
-# UI డిజైన్ (స్క్రీన్ మీద కనిపించేది)
+# UI డిజైన్
 # ==========================================
 
-# Step 1: లాగిన్ లింక్ జనరేట్ చేయడం
 st.subheader("Step 1: కింది లింక్ ద్వారా ఫయర్స్ లో లాగిన్ అవ్వండి")
 auth_link = session.generate_authcode()
 st.markdown(f"[👉 **ఇక్కడ క్లిక్ చేసి Fyers లో లాగిన్ అవ్వండి**]({auth_link})")
 
 st.markdown("---")
 
-# Step 2: కాపీ చేసిన లింక్ ని పేస్ట్ చేయడం
 st.subheader("Step 2: రీడైరెక్ట్ అయిన మొత్తం URL ని ఇక్కడ పేస్ట్ చేయండి")
 full_url = st.text_input("పైన అడ్రస్ బార్ లో ఉన్న మొత్తం లింక్ ని ఇక్కడ ఇవ్వండి:", type="password")
 
 if st.button("Generate Access Token"):
     if full_url:
         try:
-            # మీరు ఇచ్చిన మొత్తం లింక్ నుండి 'auth_code' ని సిస్టమ్ ఆటోమేటిక్ గా లాగుతుంది
             parsed = urlparse.urlparse(full_url)
             auth_code = urlparse.parse_qs(parsed.query)['auth_code'][0]
             
-            # ఆ కోడ్ తో యాక్సెస్ టోకెన్ తెచ్చుకోవడం
             session.set_token(auth_code)
             response = session.generate_token()
 
