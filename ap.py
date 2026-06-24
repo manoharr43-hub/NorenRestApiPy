@@ -1,73 +1,149 @@
 import streamlit as st
-from fyers_apiv3 import fyersModel
+import pandas as pd
+import yfinance as yf
 import os
-from dotenv import load_dotenv
+from fyers_apiv3 import fyersModel
 
-# లోకల్ లో టెస్ట్ చేసినప్పుడు .env ఫైల్ నుండి కీస్ తీసుకుంటుంది
-load_dotenv()
+# -------------------------------------------------
+#  CONFIGURATION
+# -------------------------------------------------
+st.set_page_config(page_title="📊 Fyers Algo Dashboard", layout="wide")
 
-# --- Configuration ---
-# Streamlit Secrets లేదా Environment variables నుండి కీస్ తీసుకుంటుంది
-client_id = os.getenv("FYERS_CLIENT_ID") or st.secrets.get("FYERS_CLIENT_ID")
-secret_key = os.getenv("FYERS_SECRET_KEY") or st.secrets.get("FYERS_SECRET_KEY")
+CLIENT_ID = "GA68CBAJIX-100"      # Fyers App ID
+SECRET_KEY = "M2VWI44YFG"         # Fyers Secret ID
+REDIRECT_URI = "http://localhost:8501"  # Redirect URL
 
-# ముఖ్యమైనది: మీ ఆన్‌లైన్ Streamlit లింక్ (ఇది Fyers డాష్‌బోర్డ్‌లో ఇచ్చిన లింక్‌తో కచ్చితంగా మ్యాచ్ అవ్వాలి)
-redirect_uri = "https://manoharr43-hub-norenrestapipy-ap-hk1emv.streamlit.app/"
+# -------------------------------------------------
+#  SESSION CREATION
+# -------------------------------------------------
+def create_session():
+    return fyersModel.SessionModel(
+        client_id=CLIENT_ID,
+        secret_key=SECRET_KEY,
+        redirect_uri=REDIRECT_URI,
+        response_type="code",
+        grant_type="authorization_code"
+    )
 
-# --- UI Setup ---
-st.set_page_config(page_title="My Fyers Algo", page_icon="📈")
-st.title("📈 My Fyers Algo Trading App")
+session = create_session()
+params = st.query_params
+st.title("📈 Fyers Algo Dashboard")
 
-# కీస్ లేకపోతే ఎర్రర్ చూపించడానికి
-if not client_id or not secret_key:
-    st.error("⚠️ API Keys దొరకలేదు! దయచేసి Streamlit Secrets లేదా .env ఫైల్ చెక్ చేయండి.")
-    st.stop()
+# -------------------------------------------------
+#  LOGIN FLOW
+# -------------------------------------------------
+if "access_token" not in st.session_state:
+    if "code" in params:
+        try:
+            session.set_token(params["code"])
+            token_response = session.generate_token()
+            st.session_state["access_token"] = token_response["access_token"]
+            st.success("✅ Login Successful — ట్రేడింగ్ సిద్ధంగా ఉంది!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Login Error: {e}")
+    else:
+        auth_url = session.generate_authcode()
+        st.markdown(f"[🔐 Login With Fyers]({auth_url})")
+        st.stop()
 
-# Fyers Session స్టార్ట్ చేయడం
-session = fyersModel.SessionModel(
-    client_id=client_id,
-    secret_key=secret_key,
-    redirect_uri=redirect_uri,
-    response_type="code",
-    grant_type="authorization_code"
+# -------------------------------------------------
+#  FYERS OBJECT
+# -------------------------------------------------
+fyers = fyersModel.FyersModel(
+    client_id=CLIENT_ID,
+    token=st.session_state["access_token"],
+    is_async=False,
+    log_path=""
 )
 
-# --- OAuth Flow (లాగిన్ ప్రాసెస్) ---
-# URL లో 'auth_code' ఉందో లేదో చెక్ చేస్తుంది (లాగిన్ అయ్యాక ఇది వస్తుంది)
-query_params = st.query_params
+# -------------------------------------------------
+#  SIDEBAR MENU
+# -------------------------------------------------
+menu = st.sidebar.radio(
+    "📋 Menu ఎంపిక చేయండి",
+    ["Profile", "Funds", "Holdings", "Positions", "Place Order", "NSE Scanner"]
+)
 
-if "auth_code" in query_params:
-    auth_code = query_params["auth_code"]
-    st.success("ఆథరైజేషన్ కోడ్ వచ్చింది! లాగిన్ కనెక్ట్ అవుతోంది...")
-    
-    # Access Token జనరేట్ చేయడం
-    session.set_token(auth_code)
-    response = session.generate_token()
-    
-    if "access_token" in response:
-        access_token = response["access_token"]
-        st.success("✅ లాగిన్ సక్సెస్ (Login Successful)!")
-        
-        # Fyers Model ని టోకెన్ తో ఇనిషియలైజ్ చేయడం
-        fyers = fyersModel.FyersModel(client_id=client_id, is_async=False, token=access_token, log_path="")
-        
-        # యూజర్ ప్రొఫైల్ డీటెయిల్స్ తీసుకోవడం
-        profile = fyers.get_profile()
-        if profile['s'] == 'ok':
-            name = profile['data']['name']
-            st.write(f"### స్వాగతం, {name} గారు! 🎉")
-            st.write("మీ ప్రొఫైల్ వివరాలు:")
-            st.json(profile['data']) # ప్రొఫైల్ డేటాని చూపిస్తుంది
-        else:
-            st.error("ప్రొఫైల్ వివరాలు తీసుకురావడంలో లోపం జరిగింది.")
-            st.write(profile)
-            
-    else:
-        st.error("❌ లాగిన్ ఫెయిల్ అయింది. Access Token రాలేదు.")
-        st.write(response)
+# -------------------------------------------------
+#  PROFILE
+# -------------------------------------------------
+if menu == "Profile":
+    profile = fyers.get_profile()
+    st.subheader("👤 Profile వివరాలు")
+    st.json(profile)
 
-else:
-    # యూజర్ ఇంకా లాగిన్ అవ్వకపోతే లింక్ చూపిస్తుంది
-    auth_link = session.generate_authcode()
-    st.markdown(f"### 🔐 [Fyers కి లాగిన్ అవ్వడానికి ఇక్కడ క్లిక్ చేయండి]({auth_link})")
-    st.caption("ట్రేడింగ్ ఫీచర్స్ వాడటానికి పైన ఉన్న లింక్ ద్వారా లాగిన్ అవ్వండి.")
+# -------------------------------------------------
+#  FUNDS
+# -------------------------------------------------
+elif menu == "Funds":
+    funds = fyers.funds()
+    st.subheader("💰 Funds వివరాలు")
+    st.json(funds)
+
+# -------------------------------------------------
+#  HOLDINGS
+# -------------------------------------------------
+elif menu == "Holdings":
+    holdings = fyers.holdings()
+    st.subheader("📦 Holdings వివరాలు")
+    st.json(holdings)
+
+# -------------------------------------------------
+#  POSITIONS
+# -------------------------------------------------
+elif menu == "Positions":
+    positions = fyers.positions()
+    st.subheader("📊 Positions వివరాలు")
+    st.json(positions)
+
+# -------------------------------------------------
+#  PLACE ORDER
+# -------------------------------------------------
+elif menu == "Place Order":
+    st.subheader("🛒 Place Order — ఆర్డర్ పెట్టండి")
+
+    symbol = st.text_input("Symbol", "NSE:RELIANCE-EQ")
+    qty = st.number_input("Quantity", 1, 10000, 1)
+    side = st.selectbox("Side", ["BUY", "SELL"])
+    order_type = st.selectbox("Order Type", ["MARKET", "LIMIT"])
+    limit_price = st.number_input("Limit Price", 0.0)
+
+    if st.button("Place Order"):
+        data = {
+            "symbol": symbol,
+            "qty": qty,
+            "type": 2 if order_type == "MARKET" else 1,
+            "side": 1 if side == "BUY" else -1,
+            "productType": "INTRADAY",
+            "limitPrice": limit_price,
+            "stopPrice": 0,
+            "validity": "DAY",
+            "offlineOrder": False
+        }
+        result = fyers.place_order(data)
+        st.json(result)
+
+# -------------------------------------------------
+#  NSE SCANNER
+# -------------------------------------------------
+elif menu == "NSE Scanner":
+    st.subheader("🔍 Simple NSE Scanner — సిగ్నల్ చెక్")
+    stocks = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "ICICIBANK.NS", "HDFCBANK.NS", "SBIN.NS", "LT.NS"]
+    rows = []
+
+    with st.spinner("Scanning..."):
+        for stock in stocks:
+            try:
+                df = yf.download(stock, period="3mo", progress=False)
+                close = df["Close"]
+                sma20 = close.rolling(20).mean()
+                current = float(close.iloc[-1])
+                ma20 = float(sma20.iloc[-1])
+                signal = "Bullish 📈" if current > ma20 else "Bearish 📉"
+                rows.append([stock, round(current, 2), round(ma20, 2), signal])
+            except Exception:
+                pass
+
+    result_df = pd.DataFrame(rows, columns=["Stock", "Price", "20 SMA", "Signal"])
+    st.dataframe(result_df, use_container_width=True)
