@@ -4,19 +4,27 @@ import yfinance as yf
 import os
 from fyers_apiv3 import fyersModel
 
-# -------------------------------------------------
-# CONFIGURATION
-# -------------------------------------------------
-st.set_page_config(page_title="📊 Fyers Algo Dashboard", layout="wide")
+st.set_page_config(
+    page_title="Fyers Trading Dashboard",
+    page_icon="📈",
+    layout="wide"
+)
 
-CLIENT_ID = "GA68CBAJIX-100"
-SECRET_KEY = "M2VWI44YFG"
-REDIRECT_URI = "https://manoharr43-hub-norenrestapipy-ap-hk1emv.streamlit.app"
+# --------------------
+# CONFIG
+# --------------------
 
-# -------------------------------------------------
-# SESSION CREATION
-# -------------------------------------------------
+CLIENT_ID = os.getenv("FYERS_CLIENT_ID") or st.secrets["FYERS_CLIENT_ID"]
+SECRET_KEY = os.getenv("FYERS_SECRET_KEY") or st.secrets["FYERS_SECRET_KEY"]
+
+REDIRECT_URI = "YOUR_REDIRECT_URL"
+
+# --------------------
+# LOGIN
+# --------------------
+
 def create_session():
+
     return fyersModel.SessionModel(
         client_id=CLIENT_ID,
         secret_key=SECRET_KEY,
@@ -26,30 +34,50 @@ def create_session():
     )
 
 session = create_session()
-params = st.query_params
-st.title("📈 Fyers Algo Dashboard")
 
-# -------------------------------------------------
-# LOGIN FLOW
-# -------------------------------------------------
+st.title("📈 Fyers Trading Dashboard")
+
+params = st.query_params
+
 if "access_token" not in st.session_state:
+
     if "code" in params:
+
+        auth_code = params["code"]
+
         try:
-            session.set_token(params["code"])
+            session.set_token(auth_code)
+
             token_response = session.generate_token()
-            st.session_state["access_token"] = token_response["access_token"]
-            st.success("✅ Login Successful — ట్రేడింగ్ సిద్ధంగా ఉంది!")
-            st.rerun()
+
+            if "access_token" in token_response:
+
+                st.session_state["access_token"] = token_response["access_token"]
+
+                st.success("Login Successful")
+
+                st.rerun()
+
+            else:
+                st.error(token_response)
+
         except Exception as e:
-            st.error(f"Login Error: {e}")
+            st.error(str(e))
+
     else:
+
         auth_url = session.generate_authcode()
-        st.markdown(f"[🔐 Login With Fyers]({auth_url})")
+
+        st.markdown(
+            f"[🔐 Login With Fyers]({auth_url})"
+        )
+
         st.stop()
 
-# -------------------------------------------------
+# --------------------
 # FYERS OBJECT
-# -------------------------------------------------
+# --------------------
+
 fyers = fyersModel.FyersModel(
     client_id=CLIENT_ID,
     token=st.session_state["access_token"],
@@ -57,93 +85,190 @@ fyers = fyersModel.FyersModel(
     log_path=""
 )
 
-# -------------------------------------------------
-# SIDEBAR MENU
-# -------------------------------------------------
+# --------------------
+# SIDEBAR
+# --------------------
+
 menu = st.sidebar.radio(
-    "📋 Menu ఎంపిక చేయండి",
-    ["Profile", "Funds", "Holdings", "Positions", "Place Order", "NSE Scanner"]
+    "Menu",
+    [
+        "Profile",
+        "Funds",
+        "Holdings",
+        "Positions",
+        "Place Order",
+        "NSE Scanner"
+    ]
 )
 
-# -------------------------------------------------
+# --------------------
 # PROFILE
-# -------------------------------------------------
+# --------------------
+
 if menu == "Profile":
+
     profile = fyers.get_profile()
-    st.subheader("👤 Profile వివరాలు")
+
+    st.subheader("Profile")
+
     st.json(profile)
 
-# -------------------------------------------------
+# --------------------
 # FUNDS
-# -------------------------------------------------
+# --------------------
+
 elif menu == "Funds":
+
     funds = fyers.funds()
-    st.subheader("💰 Funds వివరాలు")
+
+    st.subheader("Funds")
+
     st.json(funds)
 
-# -------------------------------------------------
+# --------------------
 # HOLDINGS
-# -------------------------------------------------
+# --------------------
+
 elif menu == "Holdings":
+
     holdings = fyers.holdings()
-    st.subheader("📦 Holdings వివరాలు")
+
+    st.subheader("Holdings")
+
     st.json(holdings)
 
-# -------------------------------------------------
+# --------------------
 # POSITIONS
-# -------------------------------------------------
+# --------------------
+
 elif menu == "Positions":
+
     positions = fyers.positions()
-    st.subheader("📊 Positions వివరాలు")
+
+    st.subheader("Positions")
+
     st.json(positions)
 
-# -------------------------------------------------
+# --------------------
 # PLACE ORDER
-# -------------------------------------------------
-elif menu == "Place Order":
-    st.subheader("🛒 Place Order — ఆర్డర్ పెట్టండి")
+# --------------------
 
-    symbol = st.text_input("Symbol", "NSE:RELIANCE-EQ")
-    qty = st.number_input("Quantity", 1, 10000, 1)
-    side = st.selectbox("Side", ["BUY", "SELL"])
-    order_type = st.selectbox("Order Type", ["MARKET", "LIMIT"])
-    limit_price = st.number_input("Limit Price", 0.0)
+elif menu == "Place Order":
+
+    st.subheader("Place Order")
+
+    symbol = st.text_input(
+        "Symbol",
+        "NSE:RELIANCE-EQ"
+    )
+
+    qty = st.number_input(
+        "Quantity",
+        1,
+        10000,
+        1
+    )
+
+    side = st.selectbox(
+        "Side",
+        ["BUY", "SELL"]
+    )
+
+    order_type = st.selectbox(
+        "Order Type",
+        ["MARKET", "LIMIT"]
+    )
+
+    limit_price = st.number_input(
+        "Limit Price",
+        0.0
+    )
 
     if st.button("Place Order"):
+
         data = {
             "symbol": symbol,
             "qty": qty,
-            "type": 2 if order_type == "MARKET" else 1,
-            "side": 1 if side == "BUY" else -1,
-            "productType": "INTRADAY",
-            "limitPrice": limit_price,
-            "stopPrice": 0,
-            "validity": "DAY",
-            "offlineOrder": False
+            "type": 2 if order_type=="MARKET" else 1,
+            "side": 1 if side=="BUY" else -1,
+            "productType":"INTRADAY",
+            "limitPrice":limit_price,
+            "stopPrice":0,
+            "validity":"DAY",
+            "offlineOrder":False
         }
+
         result = fyers.place_order(data)
+
         st.json(result)
 
-# -------------------------------------------------
+# --------------------
 # NSE SCANNER
-# -------------------------------------------------
+# --------------------
+
 elif menu == "NSE Scanner":
-    st.subheader("🔍 Simple NSE Scanner — సిగ్నల్ చెక్")
-    stocks = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "ICICIBANK.NS", "HDFCBANK.NS", "SBIN.NS", "LT.NS"]
+
+    st.subheader("Simple NSE Scanner")
+
+    stocks = [
+        "RELIANCE.NS",
+        "TCS.NS",
+        "INFY.NS",
+        "ICICIBANK.NS",
+        "HDFCBANK.NS",
+        "SBIN.NS",
+        "LT.NS"
+    ]
+
     rows = []
 
     with st.spinner("Scanning..."):
+
         for stock in stocks:
+
             try:
-                df = yf.download(stock, period="3mo", progress=False)
+
+                df = yf.download(
+                    stock,
+                    period="3mo",
+                    progress=False
+                )
+
                 close = df["Close"]
+
                 sma20 = close.rolling(20).mean()
+
                 current = float(close.iloc[-1])
+
                 ma20 = float(sma20.iloc[-1])
-                signal = "Bullish 📈" if current > ma20 else "Bearish 📉"
-                rows.append([stock, round(current, 2), round(ma20, 2), signal])
-            except Exception:
+
+                signal = (
+                    "Bullish"
+                    if current > ma20
+                    else "Bearish"
+                )
+
+                rows.append([
+                    stock,
+                    round(current,2),
+                    round(ma20,2),
+                    signal
+                ])
+
+            except:
                 pass
 
-    result_df = pd.DataFrame(rows, columns=["Stock", "Price", "20 SMA", "Signal"])
-    st.dataframe(result_df, use_container_width=True)
+    result_df = pd.DataFrame(
+        rows,
+        columns=[
+            "Stock",
+            "Price",
+            "20 SMA",
+            "Signal"
+        ]
+    )
+
+    st.dataframe(
+        result_df,
+        use_container_width=True
+    )
