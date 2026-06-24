@@ -1,59 +1,64 @@
+import streamlit as st
 import os
-from dotenv import load_dotenv
 from fyers_apiv3 import fyersModel
 
-# 1. .env ఫైల్ నుండి సీక్రెట్ కీస్ ని సురక్షితంగా లోడ్ చేయడం
-load_dotenv()
-client_id = os.getenv("FYERS_CLIENT_ID")
-secret_key = os.getenv("FYERS_SECRET_KEY")
+# Streamlit పేజీ సెట్టింగ్స్
+st.set_page_config(page_title="NSE AI PRO", layout="centered")
+st.title("📈 NSE AI PRO - Fyers Login")
+
+# Streamlit Secrets నుండి కీస్ తీసుకోవడం (లేదా మీ .env నుండి)
+# మీరు లోకల్ గా రన్ చేస్తుంటే st.secrets బదులు os.getenv వాడండి
+try:
+    client_id = st.secrets["FYERS_CLIENT_ID"]
+    secret_key = st.secrets["FYERS_SECRET_KEY"]
+except:
+    # లోకల్ సిస్టమ్ కోసం (ఒకవేళ secrets లేకపోతే)
+    from dotenv import load_dotenv
+    load_dotenv()
+    client_id = os.getenv("FYERS_CLIENT_ID")
+    secret_key = os.getenv("FYERS_SECRET_KEY")
+
 redirect_uri = "https://127.0.0.1" 
 response_type = "code"  
 grant_type = "authorization_code"  
 
-def generate_fyers_token():
-    # 2. సెషన్ క్రియేట్ చేయడం
-    session = fyersModel.SessionModel(
-        client_id=client_id,
-        secret_key=secret_key,
-        redirect_uri=redirect_uri,
-        response_type=response_type,
-        grant_type=grant_type
-    )
+# సెషన్ క్రియేట్ చేయడం
+session = fyersModel.SessionModel(
+    client_id=client_id,
+    secret_key=secret_key,
+    redirect_uri=redirect_uri,
+    response_type=response_type,
+    grant_type=grant_type
+)
 
-    # 3. లాగిన్ లింక్ జనరేట్ చేయడం
-    auth_link = session.generate_authcode()
-    print("\n" + "="*70)
-    print("STEP 1: కింది లింక్‌ని కాపీ చేసి గూగుల్ క్రోమ్ బ్రౌజర్‌లో ఓపెన్ చేయండి:")
-    print("="*70)
-    print(auth_link)
-    print("="*70 + "\n")
+# స్టెప్ 1: లాగిన్ లింక్ చూపించడం
+auth_link = session.generate_authcode()
+st.subheader("Step 1: కింది లింక్ ద్వారా లాగిన్ అవ్వండి")
+st.markdown(f"**[👉 Fyers లాగిన్ కోసం ఇక్కడ క్లిక్ చేయండి]({auth_link})**")
+st.info("లాగిన్ అయ్యాక, అడ్రస్ బార్‌లోని URL లో `auth_code=` తర్వాత ఉన్న కోడ్ ని మాత్రమే కాపీ చేయండి.")
 
-    # 4. యూజర్ లాగిన్ అయ్యే వరకు వెయిట్ చేసి, Auth Code అడగడం
-    print("STEP 2: బ్రౌజర్ లో లాగిన్ అయ్యాక, పైనున్న URL ఇలా మారుతుంది:")
-    print("https://127.0.0.1/?auth_code=XXXXXXXX&state=None")
-    print("అందులో 'auth_code=' తర్వాత ఉన్న ఆ XXXXXXXX కోడ్ ని మాత్రమే కాపీ చేయండి.\n")
-    
-    auth_code = input("👉 ఇక్కడ మీ Auth Code ని పేస్ట్ చేసి Enter నొక్కండి: ")
+st.divider()
 
-    # 5. Access Token జనరేట్ చేయడం
-    session.set_token(auth_code)
-    response = session.generate_token()
+# స్టెప్ 2: Auth Code ఎంటర్ చేయడానికి బాక్స్
+st.subheader("Step 2: Auth Code ని ఇక్కడ పేస్ట్ చేయండి")
+auth_code = st.text_input("మీ Auth Code ఇక్కడ ఇవ్వండి:", type="password")
 
-    # 6. టోకెన్ వచ్చిందో లేదో చెక్ చేసి, దాన్ని సేవ్ చేయడం
-    if response.get("s") == "ok":
-        access_token = response["access_token"]
-        print("\n✅ సక్సెస్! మీ Access Token జనరేట్ అయ్యింది.")
-        
-        # భవిష్యత్తులో NSE AI PRO వాడుకోవడానికి టోకెన్ ని ఒక ఫైల్ లో సేవ్ చేయడం
-        with open("access_token.txt", "w") as f:
-            f.write(access_token)
+# బటన్ నొక్కినప్పుడు టోకెన్ జనరేట్ చేయడం
+if st.button("Generate Access Token"):
+    if auth_code:
+        session.set_token(auth_code)
+        response = session.generate_token()
+
+        if response.get("s") == "ok":
+            st.success("✅ సక్సెస్! మీ Access Token జనరేట్ అయ్యింది. మీరు ఇప్పుడు ట్రేడింగ్ డేటా పొందవచ్చు.")
             
-        print("📁 టోకెన్ విజయవంతంగా 'access_token.txt' ఫైల్ లో సేవ్ చేయబడింది!")
-        print("ఇక మీ డ్యాష్‌బోర్డ్ ద్వారా లైవ్ ట్రేడింగ్ డేటాని పొందవచ్చు.")
+            # టోకెన్ ని వేరే ఫంక్షన్స్ కోసం సేవ్ చేసుకోవడం
+            st.session_state['access_token'] = response["access_token"]
+            
+            # కావాలంటే టోకెన్ వివరాలు ప్రింట్ చేయొచ్చు (సెక్యూరిటీ కోసం డిస్ప్లే చేయకండి)
+            st.write("ఇక మనం లైవ్ డేటా మరియు చార్ట్స్ వైపు వెళ్లొచ్చు!")
+        else:
+            st.error("❌ ఎర్రర్ వచ్చింది. దయచేసి సరైన కోడ్ ని ఇవ్వండి లేదా వివరాలు చెక్ చేయండి.")
+            st.json(response)
     else:
-        print("\n❌ ఎర్రర్ వచ్చింది. దయచేసి వివరాలు చెక్ చేయండి:")
-        print(response)
-
-# ప్రోగ్రామ్ రన్ చేయడం
-if __name__ == "__main__":
-    generate_fyers_token()
+        st.warning("ముందుగా పై బాక్స్ లో Auth Code ని ఎంటర్ చేయండి.")
