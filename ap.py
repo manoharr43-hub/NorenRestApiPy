@@ -141,4 +141,10 @@ elif menu == "NSE Scanner":
                 sma20 = close.rolling(20).mean()
                 current = float(close.iloc[-1])
                 ma20 = float(sma20.iloc[-1])
-                signal = "Bullish
+                signal = "Bullish 📈" if current > ma20 else "Bearish 📉"
+                rows.append([stock, round(current, 2), round(ma20, 2), signal])
+            except Exception:
+                pass
+
+    result_df = pd.DataFrame(rows, columns=["Stock", "Price", "20 SMA", "Signal"])
+    st.dataframe(result_df, use_container_width=True)
