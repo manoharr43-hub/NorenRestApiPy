@@ -4,27 +4,34 @@ import yfinance as yf
 import os
 from fyers_apiv3 import fyersModel
 
+# =====================================================
+# PAGE CONFIG
+# =====================================================
+
 st.set_page_config(
     page_title="Fyers Trading Dashboard",
     page_icon="📈",
     layout="wide"
 )
 
-# --------------------
-# CONFIG
-# --------------------
+# =====================================================
+# FYERS CONFIG
+# =====================================================
 
-CLIENT_ID = os.getenv("FYERS_CLIENT_ID") or st.secrets["FYERS_CLIENT_ID"]
-SECRET_KEY = os.getenv("FYERS_SECRET_KEY") or st.secrets["FYERS_SECRET_KEY"]
+CLIENT_ID = os.getenv("FYERS_CLIENT_ID") or st.secrets.get("FYERS_CLIENT_ID")
+SECRET_KEY = os.getenv("FYERS_SECRET_KEY") or st.secrets.get("FYERS_SECRET_KEY")
 
-REDIRECT_URI = "YOUR_REDIRECT_URL"
+REDIRECT_URI = "https://manoharr43-hub-norenrestapipy-ap-hk1emv.streamlit.app/"
 
-# --------------------
-# LOGIN
-# --------------------
+if not CLIENT_ID or not SECRET_KEY:
+    st.error("Fyers Client ID / Secret Key Missing")
+    st.stop()
+
+# =====================================================
+# LOGIN SESSION
+# =====================================================
 
 def create_session():
-
     return fyersModel.SessionModel(
         client_id=CLIENT_ID,
         secret_key=SECRET_KEY,
@@ -37,16 +44,24 @@ session = create_session()
 
 st.title("📈 Fyers Trading Dashboard")
 
+# =====================================================
+# LOGIN
+# =====================================================
+
 params = st.query_params
 
 if "access_token" not in st.session_state:
 
-    if "code" in params:
+    code = params.get("code")
 
-        auth_code = params["code"]
+    if code:
+
+        if isinstance(code, list):
+            code = code[0]
 
         try:
-            session.set_token(auth_code)
+
+            session.set_token(code)
 
             token_response = session.generate_token()
 
@@ -54,7 +69,7 @@ if "access_token" not in st.session_state:
 
                 st.session_state["access_token"] = token_response["access_token"]
 
-                st.success("Login Successful")
+                st.success("✅ Login Successful")
 
                 st.rerun()
 
@@ -62,21 +77,25 @@ if "access_token" not in st.session_state:
                 st.error(token_response)
 
         except Exception as e:
-            st.error(str(e))
+            st.error(f"Login Error: {e}")
 
     else:
 
         auth_url = session.generate_authcode()
 
         st.markdown(
-            f"[🔐 Login With Fyers]({auth_url})"
+            f"""
+            ### Login Required
+
+            [🔐 Login With Fyers]({auth_url})
+            """
         )
 
         st.stop()
 
-# --------------------
+# =====================================================
 # FYERS OBJECT
-# --------------------
+# =====================================================
 
 fyers = fyersModel.FyersModel(
     client_id=CLIENT_ID,
@@ -85,130 +104,84 @@ fyers = fyersModel.FyersModel(
     log_path=""
 )
 
-# --------------------
+# =====================================================
 # SIDEBAR
-# --------------------
+# =====================================================
 
 menu = st.sidebar.radio(
-    "Menu",
+    "Select",
     [
         "Profile",
         "Funds",
         "Holdings",
         "Positions",
-        "Place Order",
-        "NSE Scanner"
+        "Scanner"
     ]
 )
 
-# --------------------
+# =====================================================
 # PROFILE
-# --------------------
+# =====================================================
 
 if menu == "Profile":
 
-    profile = fyers.get_profile()
-
     st.subheader("Profile")
 
-    st.json(profile)
+    try:
+        profile = fyers.get_profile()
+        st.json(profile)
+    except Exception as e:
+        st.error(str(e))
 
-# --------------------
+# =====================================================
 # FUNDS
-# --------------------
+# =====================================================
 
 elif menu == "Funds":
 
-    funds = fyers.funds()
-
     st.subheader("Funds")
 
-    st.json(funds)
+    try:
+        funds = fyers.funds()
+        st.json(funds)
+    except Exception as e:
+        st.error(str(e))
 
-# --------------------
+# =====================================================
 # HOLDINGS
-# --------------------
+# =====================================================
 
 elif menu == "Holdings":
 
-    holdings = fyers.holdings()
-
     st.subheader("Holdings")
 
-    st.json(holdings)
+    try:
+        holdings = fyers.holdings()
+        st.json(holdings)
+    except Exception as e:
+        st.error(str(e))
 
-# --------------------
+# =====================================================
 # POSITIONS
-# --------------------
+# =====================================================
 
 elif menu == "Positions":
 
-    positions = fyers.positions()
-
     st.subheader("Positions")
 
-    st.json(positions)
+    try:
+        positions = fyers.positions()
+        st.json(positions)
+    except Exception as e:
+        st.error(str(e))
 
-# --------------------
-# PLACE ORDER
-# --------------------
-
-elif menu == "Place Order":
-
-    st.subheader("Place Order")
-
-    symbol = st.text_input(
-        "Symbol",
-        "NSE:RELIANCE-EQ"
-    )
-
-    qty = st.number_input(
-        "Quantity",
-        1,
-        10000,
-        1
-    )
-
-    side = st.selectbox(
-        "Side",
-        ["BUY", "SELL"]
-    )
-
-    order_type = st.selectbox(
-        "Order Type",
-        ["MARKET", "LIMIT"]
-    )
-
-    limit_price = st.number_input(
-        "Limit Price",
-        0.0
-    )
-
-    if st.button("Place Order"):
-
-        data = {
-            "symbol": symbol,
-            "qty": qty,
-            "type": 2 if order_type=="MARKET" else 1,
-            "side": 1 if side=="BUY" else -1,
-            "productType":"INTRADAY",
-            "limitPrice":limit_price,
-            "stopPrice":0,
-            "validity":"DAY",
-            "offlineOrder":False
-        }
-
-        result = fyers.place_order(data)
-
-        st.json(result)
-
-# --------------------
+# =====================================================
 # NSE SCANNER
-# --------------------
+# =====================================================
 
-elif menu == "NSE Scanner":
+elif menu == "Scanner":
 
-    st.subheader("Simple NSE Scanner")
+    st.subheader("📊 NSE Scanner")
 
     stocks = [
         "RELIANCE.NS",
@@ -220,9 +193,9 @@ elif menu == "NSE Scanner":
         "LT.NS"
     ]
 
-    rows = []
+    results = []
 
-    with st.spinner("Scanning..."):
+    with st.spinner("Scanning Stocks..."):
 
         for stock in stocks:
 
@@ -231,15 +204,18 @@ elif menu == "NSE Scanner":
                 df = yf.download(
                     stock,
                     period="3mo",
-                    progress=False
+                    progress=False,
+                    auto_adjust=True
                 )
+
+                if len(df) < 20:
+                    continue
 
                 close = df["Close"]
 
                 sma20 = close.rolling(20).mean()
 
                 current = float(close.iloc[-1])
-
                 ma20 = float(sma20.iloc[-1])
 
                 signal = (
@@ -248,10 +224,10 @@ elif menu == "NSE Scanner":
                     else "Bearish"
                 )
 
-                rows.append([
+                results.append([
                     stock,
-                    round(current,2),
-                    round(ma20,2),
+                    round(current, 2),
+                    round(ma20, 2),
                     signal
                 ])
 
@@ -259,7 +235,7 @@ elif menu == "NSE Scanner":
                 pass
 
     result_df = pd.DataFrame(
-        rows,
+        results,
         columns=[
             "Stock",
             "Price",
@@ -272,3 +248,13 @@ elif menu == "NSE Scanner":
         result_df,
         use_container_width=True
     )
+
+# =====================================================
+# LOGOUT
+# =====================================================
+
+if st.sidebar.button("Logout"):
+
+    st.session_state.clear()
+
+    st.rerun()
