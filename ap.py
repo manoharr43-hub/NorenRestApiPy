@@ -5,16 +5,17 @@ import os
 from fyers_apiv3 import fyersModel
 
 # -------------------------------------------------
-#  CONFIGURATION
+# CONFIGURATION
 # -------------------------------------------------
 st.set_page_config(page_title="📊 Fyers Algo Dashboard", layout="wide")
 
-CLIENT_ID = "GA68CBAJIX-100"      # Fyers App ID
-SECRET_KEY = "M2VWI44YFG"         # Fyers Secret ID
-REDIRECT_URI = "http://localhost:8501"  # Redirect URL
+# ✅ Use your actual App ID and Secret from Fyers dashboard
+CLIENT_ID = "GA68CBAJIX-100"      # Full App ID (with version)
+SECRET_KEY = "M2VWI44YFG"         # Secret ID
+REDIRECT_URI = "https://manoharr43-hub-norenrestapipy-ap-hk1emv.streamlit.app"  # Streamlit URL
 
 # -------------------------------------------------
-#  SESSION CREATION
+# SESSION CREATION
 # -------------------------------------------------
 def create_session():
     return fyersModel.SessionModel(
@@ -30,7 +31,7 @@ params = st.query_params
 st.title("📈 Fyers Algo Dashboard")
 
 # -------------------------------------------------
-#  LOGIN FLOW
+# LOGIN FLOW
 # -------------------------------------------------
 if "access_token" not in st.session_state:
     if "code" in params:
@@ -48,7 +49,7 @@ if "access_token" not in st.session_state:
         st.stop()
 
 # -------------------------------------------------
-#  FYERS OBJECT
+# FYERS OBJECT
 # -------------------------------------------------
 fyers = fyersModel.FyersModel(
     client_id=CLIENT_ID,
@@ -58,7 +59,7 @@ fyers = fyersModel.FyersModel(
 )
 
 # -------------------------------------------------
-#  SIDEBAR MENU
+# SIDEBAR MENU
 # -------------------------------------------------
 menu = st.sidebar.radio(
     "📋 Menu ఎంపిక చేయండి",
@@ -66,7 +67,7 @@ menu = st.sidebar.radio(
 )
 
 # -------------------------------------------------
-#  PROFILE
+# PROFILE
 # -------------------------------------------------
 if menu == "Profile":
     profile = fyers.get_profile()
@@ -74,7 +75,7 @@ if menu == "Profile":
     st.json(profile)
 
 # -------------------------------------------------
-#  FUNDS
+# FUNDS
 # -------------------------------------------------
 elif menu == "Funds":
     funds = fyers.funds()
@@ -82,7 +83,7 @@ elif menu == "Funds":
     st.json(funds)
 
 # -------------------------------------------------
-#  HOLDINGS
+# HOLDINGS
 # -------------------------------------------------
 elif menu == "Holdings":
     holdings = fyers.holdings()
@@ -90,7 +91,7 @@ elif menu == "Holdings":
     st.json(holdings)
 
 # -------------------------------------------------
-#  POSITIONS
+# POSITIONS
 # -------------------------------------------------
 elif menu == "Positions":
     positions = fyers.positions()
@@ -98,7 +99,7 @@ elif menu == "Positions":
     st.json(positions)
 
 # -------------------------------------------------
-#  PLACE ORDER
+# PLACE ORDER
 # -------------------------------------------------
 elif menu == "Place Order":
     st.subheader("🛒 Place Order — ఆర్డర్ పెట్టండి")
@@ -125,7 +126,7 @@ elif menu == "Place Order":
         st.json(result)
 
 # -------------------------------------------------
-#  NSE SCANNER
+# NSE SCANNER
 # -------------------------------------------------
 elif menu == "NSE Scanner":
     st.subheader("🔍 Simple NSE Scanner — సిగ్నల్ చెక్")
@@ -140,10 +141,4 @@ elif menu == "NSE Scanner":
                 sma20 = close.rolling(20).mean()
                 current = float(close.iloc[-1])
                 ma20 = float(sma20.iloc[-1])
-                signal = "Bullish 📈" if current > ma20 else "Bearish 📉"
-                rows.append([stock, round(current, 2), round(ma20, 2), signal])
-            except Exception:
-                pass
-
-    result_df = pd.DataFrame(rows, columns=["Stock", "Price", "20 SMA", "Signal"])
-    st.dataframe(result_df, use_container_width=True)
+                signal = "Bullish
