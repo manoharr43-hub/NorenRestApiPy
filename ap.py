@@ -9,10 +9,9 @@ from fyers_apiv3 import fyersModel
 # -------------------------------------------------
 st.set_page_config(page_title="📊 Fyers Algo Dashboard", layout="wide")
 
-# ✅ Use your actual App ID and Secret from Fyers dashboard
-CLIENT_ID = "GA68CBAJIX-100"      # Full App ID (with version)
-SECRET_KEY = "M2VWI44YFG"         # Secret ID
-REDIRECT_URI = "https://manoharr43-hub-norenrestapipy-ap-hk1emv.streamlit.app"  # Streamlit URL
+CLIENT_ID = "GA68CBAJIX-100"
+SECRET_KEY = "M2VWI44YFG"
+REDIRECT_URI = "https://manoharr43-hub-norenrestapipy-ap-hk1emv.streamlit.app"
 
 # -------------------------------------------------
 # SESSION CREATION
