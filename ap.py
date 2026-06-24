@@ -1,27 +1,29 @@
 import streamlit as st
+from fyers_apiv3 import fyersModel
 import os
 from dotenv import load_dotenv
-from fyers_apiv3 import fyersModel
 
-# పేజీ సెట్టింగ్స్
-st.set_page_config(page_title="Fyers Algo Trading", layout="wide")
-
-# 1. .env ఫైల్ నుండి కీస్ లోడ్ చేయడం
+# లోకల్ లో టెస్ట్ చేసినప్పుడు .env ఫైల్ నుండి కీస్ తీసుకుంటుంది
 load_dotenv()
-client_id = os.getenv("FYERS_CLIENT_ID")
-secret_key = os.getenv("FYERS_SECRET_KEY")
 
-# Fyers డాష్‌బోర్డ్‌లో మీరు ఇచ్చిన Redirect URL కచ్చితంగా ఇదే అయి ఉండాలి
-redirect_uri = "http://localhost:8501/" 
+# --- Configuration ---
+# Streamlit Secrets లేదా Environment variables నుండి కీస్ తీసుకుంటుంది
+client_id = os.getenv("FYERS_CLIENT_ID") or st.secrets.get("FYERS_CLIENT_ID")
+secret_key = os.getenv("FYERS_SECRET_KEY") or st.secrets.get("FYERS_SECRET_KEY")
 
+# ముఖ్యమైనది: మీ ఆన్‌లైన్ Streamlit లింక్ (ఇది Fyers డాష్‌బోర్డ్‌లో ఇచ్చిన లింక్‌తో కచ్చితంగా మ్యాచ్ అవ్వాలి)
+redirect_uri = "https://manoharr43-hub-norenrestapipy-ap-hk1emv.streamlit.app/"
+
+# --- UI Setup ---
+st.set_page_config(page_title="My Fyers Algo", page_icon="📈")
 st.title("📈 My Fyers Algo Trading App")
 
-# API కీస్ ఉన్నాయో లేదో చెక్ చేయడం
+# కీస్ లేకపోతే ఎర్రర్ చూపించడానికి
 if not client_id or not secret_key:
-    st.error("⚠️ API Keys దొరకలేదు! దయచేసి .env ఫైల్‌ని సరిగ్గా సెట్ చేశారో లేదో చెక్ చేయండి.")
+    st.error("⚠️ API Keys దొరకలేదు! దయచేసి Streamlit Secrets లేదా .env ఫైల్ చెక్ చేయండి.")
     st.stop()
 
-# 2. Fyers సెషన్ సెటప్
+# Fyers Session స్టార్ట్ చేయడం
 session = fyersModel.SessionModel(
     client_id=client_id,
     secret_key=secret_key,
@@ -30,66 +32,42 @@ session = fyersModel.SessionModel(
     grant_type="authorization_code"
 )
 
-# 3. ఆథరైజేషన్ (Authentication) విధానం
+# --- OAuth Flow (లాగిన్ ప్రాసెస్) ---
+# URL లో 'auth_code' ఉందో లేదో చెక్ చేస్తుంది (లాగిన్ అయ్యాక ఇది వస్తుంది)
 query_params = st.query_params
 
-# సెషన్ లో యాక్సెస్ టోకెన్ లేకపోతే, లాగిన్ ప్రాసెస్ స్టార్ట్ చేయాలి
-if "access_token" not in st.session_state:
+if "auth_code" in query_params:
+    auth_code = query_params["auth_code"]
+    st.success("ఆథరైజేషన్ కోడ్ వచ్చింది! లాగిన్ కనెక్ట్ అవుతోంది...")
     
-    # URL లో 'auth_code' ఉందో లేదో చెక్ చేస్తుంది (లాగిన్ అయ్యాక వస్తుంది)
-    if "auth_code" in query_params:
-        auth_code = query_params["auth_code"]
-        st.info("✅ Auth Code దొరికింది! Access Token జనరేట్ చేస్తున్నాం...")
+    # Access Token జనరేట్ చేయడం
+    session.set_token(auth_code)
+    response = session.generate_token()
+    
+    if "access_token" in response:
+        access_token = response["access_token"]
+        st.success("✅ లాగిన్ సక్సెస్ (Login Successful)!")
         
-        # టోకెన్ జనరేట్ చేయడం
-        session.set_token(auth_code)
-        response = session.generate_token()
+        # Fyers Model ని టోకెన్ తో ఇనిషియలైజ్ చేయడం
+        fyers = fyersModel.FyersModel(client_id=client_id, is_async=False, token=access_token, log_path="")
         
-        if response.get("s") == "ok":
-            access_token = response["access_token"]
-            
-            # టోకెన్ ని సెషన్ లో సేవ్ చేయడం (పేజీ రీలోడ్ అయినా పోకుండా ఉండటానికి)
-            st.session_state["access_token"] = access_token
-            st.success("🎉 లాగిన్ సక్సెస్! యాక్సెస్ టోకెన్ జనరేట్ అయ్యింది.")
-            
-            # URL ని క్లీన్ చేసి పేజీని రీఫ్రెష్ చేయడం
-            st.query_params.clear()
-            st.rerun()
+        # యూజర్ ప్రొఫైల్ డీటెయిల్స్ తీసుకోవడం
+        profile = fyers.get_profile()
+        if profile['s'] == 'ok':
+            name = profile['data']['name']
+            st.write(f"### స్వాగతం, {name} గారు! 🎉")
+            st.write("మీ ప్రొఫైల్ వివరాలు:")
+            st.json(profile['data']) # ప్రొఫైల్ డేటాని చూపిస్తుంది
         else:
-            st.error(f"❌ లాగిన్ ఫెయిల్ అయ్యింది: {response.get('message', 'Unknown Error')}")
+            st.error("ప్రొఫైల్ వివరాలు తీసుకురావడంలో లోపం జరిగింది.")
+            st.write(profile)
             
     else:
-        # టోకెన్ లేదు, auth_code కూడా లేదు కాబట్టి లాగిన్ లింక్ చూపించాలి
-        auth_url = session.generate_authcode()
-        st.markdown(f"### 🔐 [Fyers కి లాగిన్ అవ్వడానికి ఇక్కడ క్లిక్ చేయండి]({auth_url})")
-        st.warning("ట్రేడింగ్ ఫీచర్స్ వాడటానికి పైన ఉన్న లింక్ ద్వారా లాగిన్ అవ్వండి.")
+        st.error("❌ లాగిన్ ఫెయిల్ అయింది. Access Token రాలేదు.")
+        st.write(response)
 
-# 4. లాగిన్ సక్సెస్ అయ్యాక చూపించే స్క్రీన్ (టెస్టింగ్ కోసం)
-if "access_token" in st.session_state:
-    st.success("✅ మీరు సక్సెస్ ఫుల్ గా లాగిన్ అయ్యారు!")
-    
-    # Fyers మోడల్ ని ఇనిషియలైజ్ చేయడం
-    fyers = fyersModel.FyersModel(
-        client_id=client_id, 
-        is_async=False, 
-        token=st.session_state["access_token"], 
-        log_path=""
-    )
-    
-    st.subheader("👤 అకౌంట్ వివరాలు (Connection Test)")
-    
-    # కనెక్షన్ టెస్ట్ చేయడానికి బటన్
-    if st.button("నా ప్రొఫైల్ వివరాలు చూపించు"):
-        try:
-            profile = fyers.get_profile()
-            if profile['s'] == 'ok':
-                st.write(f"**పేరు:** {profile['data']['name']}")
-                st.write(f"**యూజర్ ఐడి:** {profile['data']['display_name']}")
-                st.balloons() # సక్సెస్ అయితే బెలూన్స్ వస్తాయి!
-            else:
-                st.error(f"ప్రొఫైల్ వివరాలు తీసుకురావడంలో ఎర్రర్: {profile}")
-        except Exception as e:
-            st.error(f"కనెక్షన్ ఎర్రర్: {e}")
-            
-    st.divider()
-    st.write("🔧 మీ ఆల్గో ట్రేడింగ్ స్ట్రాటజీ (బై/సెల్ లాజిక్) తదుపరి స్టెప్స్ లో ఇక్కడ రాస్తాం.")
+else:
+    # యూజర్ ఇంకా లాగిన్ అవ్వకపోతే లింక్ చూపిస్తుంది
+    auth_link = session.generate_authcode()
+    st.markdown(f"### 🔐 [Fyers కి లాగిన్ అవ్వడానికి ఇక్కడ క్లిక్ చేయండి]({auth_link})")
+    st.caption("ట్రేడింగ్ ఫీచర్స్ వాడటానికి పైన ఉన్న లింక్ ద్వారా లాగిన్ అవ్వండి.")
