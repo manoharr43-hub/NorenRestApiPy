@@ -3,90 +3,88 @@ import pandas as pd
 import yfinance as yf
 
 st.set_page_config(
-    page_title="NSE Stock Scanner",
-    page_icon="📈",
-    layout="wide"
+page_title="📈 NSE Stock Scanner",
+page_icon="📈",
+layout="wide"
 )
 
-st.title("📈 NSE Stock Scanner")
+st.title("📈 NSE Stock Scanner V2")
 
 stocks = [
-    "RELIANCE.NS",
-    "TCS.NS",
-    "INFY.NS",
-    "HDFCBANK.NS",
-    "ICICIBANK.NS",
-    "SBIN.NS",
-    "LT.NS",
-    "AXISBANK.NS",
-    "ITC.NS",
-    "BHARTIARTL.NS"
+"RELIANCE.NS",
+"TCS.NS",
+"INFY.NS",
+"HDFCBANK.NS",
+"ICICIBANK.NS",
+"SBIN.NS",
+"LT.NS",
+"AXISBANK.NS",
+"ITC.NS",
+"BHARTIARTL.NS"
 ]
 
 results = []
 
-with st.spinner("Scanning stocks..."):
+with st.spinner("Scanning Stocks..."):
 
-    for stock in stocks:
+```
+for stock in stocks:
 
-        try:
+    try:
 
-            df = yf.download(
-                stock,
-                period="6mo",
-                progress=False,
-                auto_adjust=True
-            )
+        df = yf.download(
+            stock,
+            period="6mo",
+            auto_adjust=True,
+            progress=False
+        )
 
-            if len(df) < 50:
-                continue
+        if df.empty:
+            continue
 
-            close = df["Close"]
+        close = df["Close"].squeeze()
 
-            sma20 = close.rolling(20).mean()
-            sma50 = close.rolling(50).mean()
+        if len(close) < 50:
+            continue
 
-            current = float(close.iloc[-1])
-            ma20 = float(sma20.iloc[-1])
-            ma50 = float(sma50.iloc[-1])
+        sma20 = close.rolling(20).mean()
+        sma50 = close.rolling(50).mean()
 
-            if current > ma20 and ma20 > ma50:
-                signal = "Strong Bullish"
-            elif current > ma20:
-                signal = "Bullish"
-            else:
-                signal = "Bearish"
+        current = round(float(close.iloc[-1]), 2)
+        ma20 = round(float(sma20.iloc[-1]), 2)
+        ma50 = round(float(sma50.iloc[-1]), 2)
 
-            results.append(
-                [
-                    stock,
-                    round(current, 2),
-                    round(ma20, 2),
-                    round(ma50, 2),
-                    signal
-                ]
-            )
+        if current > ma20 and ma20 > ma50:
+            signal = "🟢 Strong Bullish"
+        elif current > ma20:
+            signal = "🟡 Bullish"
+        else:
+            signal = "🔴 Bearish"
 
-        except Exception as e:
-            st.warning(f"{stock}: {e}")
+        results.append({
+            "Stock": stock,
+            "Price": current,
+            "SMA20": ma20,
+            "SMA50": ma50,
+            "Signal": signal
+        })
 
-df_result = pd.DataFrame(
-    results,
-    columns=[
-        "Stock",
-        "Price",
-        "SMA20",
-        "SMA50",
-        "Signal"
-    ]
-)
+    except Exception as e:
+
+        st.warning(f"{stock}: {e}")
+```
+
+if results:
+
+```
+result_df = pd.DataFrame(results)
 
 st.dataframe(
-    df_result,
+    result_df,
     use_container_width=True
 )
 
-csv = df_result.to_csv(index=False)
+csv = result_df.to_csv(index=False)
 
 st.download_button(
     "⬇ Download CSV",
@@ -94,3 +92,10 @@ st.download_button(
     file_name="scanner_results.csv",
     mime="text/csv"
 )
+```
+
+else:
+
+```
+st.error("No stocks found.")
+```
