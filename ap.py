@@ -2,9 +2,6 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 
-# -------------------------------
-# Streamlit Page Config
-# -------------------------------
 st.set_page_config(
     page_title="NSE Stock Scanner",
     page_icon="📈",
@@ -13,18 +10,12 @@ st.set_page_config(
 
 st.title("📈 NSE Stock Scanner")
 
-# -------------------------------
-# Stock List (can be expanded)
-# -------------------------------
 stocks = [
     "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS",
     "ICICIBANK.NS", "SBIN.NS", "LT.NS", "AXISBANK.NS",
     "ITC.NS", "BHARTIARTL.NS"
 ]
 
-# -------------------------------
-# Helper Functions
-# -------------------------------
 @st.cache_data(ttl=300)
 def get_data(stock):
     return yf.download(
@@ -43,9 +34,6 @@ def calculate_rsi(series, period=14):
     rs = avg_gain / avg_loss
     return 100 - (100 / (1 + rs))
 
-# -------------------------------
-# Scanner Logic
-# -------------------------------
 results = []
 
 with st.spinner("🔍 Scanning Stocks..."):
@@ -62,12 +50,12 @@ with st.spinner("🔍 Scanning Stocks..."):
             sma50 = close.rolling(50).mean()
             rsi = calculate_rsi(close).iloc[-1]
 
-            current = round(float(close.iloc[-1]), 2)
-            ma20 = round(float(sma20.iloc[-1]), 2)
-            ma50 = round(float(sma50.iloc[-1]), 2)
-            rsi_val = round(float(rsi), 2)
+            # ✅ Use .item() to convert scalar Series to float
+            current = round(float(close.iloc[-1].item()), 2)
+            ma20 = round(float(sma20.iloc[-1].item()), 2)
+            ma50 = round(float(sma50.iloc[-1].item()), 2)
+            rsi_val = round(float(rsi.item()), 2)
 
-            # Signal Logic
             if current > ma20 and ma20 > ma50 and rsi_val > 60:
                 signal = "🔥 Strong Bullish"
             elif current > ma20:
@@ -89,13 +77,9 @@ with st.spinner("🔍 Scanning Stocks..."):
         except Exception as e:
             st.warning(f"{stock}: {e}")
 
-# -------------------------------
-# Display Results
-# -------------------------------
 if results:
     result_df = pd.DataFrame(results)
 
-    # Color-coded signals
     def highlight_signal(val):
         if "Strong Bullish" in val:
             return "background-color: lightgreen"
@@ -112,7 +96,6 @@ if results:
         use_container_width=True
     )
 
-    # Download CSV
     csv = result_df.to_csv(index=False)
     st.download_button(
         label="⬇️ Download CSV",
