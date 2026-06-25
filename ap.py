@@ -3,12 +3,12 @@ import pandas as pd
 import yfinance as yf
 
 st.set_page_config(
-page_title="📈 NSE Stock Scanner",
+page_title="NSE Stock Scanner",
 page_icon="📈",
 layout="wide"
 )
 
-st.title("📈 NSE Stock Scanner V2")
+st.title("📈 NSE Stock Scanner")
 
 stocks = [
 "RELIANCE.NS",
@@ -26,23 +26,23 @@ stocks = [
 results = []
 
 with st.spinner("Scanning Stocks..."):
+for stock in stocks:
+try:
+df = yf.download(
+stock,
+period="6mo",
+auto_adjust=True,
+progress=False
+)
 
 ```
-for stock in stocks:
-
-    try:
-
-        df = yf.download(
-            stock,
-            period="6mo",
-            auto_adjust=True,
-            progress=False
-        )
-
         if df.empty:
             continue
 
-        close = df["Close"].squeeze()
+        close = df["Close"]
+
+        if isinstance(close, pd.DataFrame):
+            close = close.iloc[:, 0]
 
         if len(close) < 50:
             continue
@@ -55,11 +55,11 @@ for stock in stocks:
         ma50 = round(float(sma50.iloc[-1]), 2)
 
         if current > ma20 and ma20 > ma50:
-            signal = "🟢 Strong Bullish"
+            signal = "Strong Bullish"
         elif current > ma20:
-            signal = "🟡 Bullish"
+            signal = "Bullish"
         else:
-            signal = "🔴 Bearish"
+            signal = "Bearish"
 
         results.append({
             "Stock": stock,
@@ -70,15 +70,13 @@ for stock in stocks:
         })
 
     except Exception as e:
-
         st.warning(f"{stock}: {e}")
 ```
 
 if results:
-
-```
 result_df = pd.DataFrame(results)
 
+```
 st.dataframe(
     result_df,
     use_container_width=True
@@ -87,15 +85,12 @@ st.dataframe(
 csv = result_df.to_csv(index=False)
 
 st.download_button(
-    "⬇ Download CSV",
-    csv,
+    label="Download CSV",
+    data=csv,
     file_name="scanner_results.csv",
     mime="text/csv"
 )
 ```
 
 else:
-
-```
-st.error("No stocks found.")
-```
+st.error("No stock data found.")
