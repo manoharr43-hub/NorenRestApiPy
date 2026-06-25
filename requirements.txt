@@ -1,7 +1,5 @@
-```txt
-streamlit
-pandas
-yfinance
-fyers-apiv3
-numpy
-```
+streamlit>=1.40.0
+pandas>=2.2.0
+numpy>=1.26.0
+yfinance>=0.2.54
+fyers-apiv3==3.1.7
