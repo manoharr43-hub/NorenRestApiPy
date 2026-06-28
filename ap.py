@@ -1,220 +1,274 @@
 import streamlit as st
-import pandas as pd
-import yfinance as yf
-import os
 from fyers_apiv3 import fyersModel
 
-# ==================================================
-# CONFIG
-# ==================================================
+# ==========================
+# Import Pages
+# ==========================
+from dashboard import show_dashboard
+from market import show_market
+from portfolio import show_portfolio
+from orders import show_orders
+from option_chain import show_option_chain
+from scanner import show_scanner
+from charts import show_charts
+from trading import show_trading
+from profile import show_profile
+from settings import show_settings
+
+# ==========================
+# PAGE CONFIG
+# ==========================
 st.set_page_config(
-    page_title="Fyers Trading Dashboard",
+    page_title="FYERS Trading Dashboard",
     page_icon="📈",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-CLIENT_ID = os.getenv("FYERS_CLIENT_ID", st.secrets.get("FYERS_CLIENT_ID", ""))
-SECRET_KEY = os.getenv("FYERS_SECRET_KEY", st.secrets.get("FYERS_SECRET_KEY", ""))
+# ==========================
+# FYERS CONFIG
+# ==========================
+CLIENT_ID = st.secrets["FYERS_CLIENT_ID"]
+SECRET_KEY = st.secrets["FYERS_SECRET_KEY"]
+REDIRECT_URI = st.secrets["FYERS_REDIRECT_URI"]
 
-REDIRECT_URI = "https://manoharr43-hub-norenrestapipy-ap-hk1emv.streamlit.app/"
+# ==========================
+# SESSION DEFAULTS
+# ==========================
+if "access_token" not in st.session_state:
+    st.session_state["access_token"] = None
 
-if not CLIENT_ID:
-    st.error("FYERS_CLIENT_ID Missing")
-    st.stop()
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
 
-if not SECRET_KEY:
-    st.error("FYERS_SECRET_KEY Missing")
-    st.stop()
+# ==========================
+# APP TITLE
+# ==========================
+st.title("📈 FYERS Trading Dashboard")
+st.caption("Powered by FYERS API V3")
 
-# ==================================================
-# LOGIN SESSION
-# ==================================================
-def get_session():
-    return fyersModel.SessionModel(
-        client_id=CLIENT_ID,
-        secret_key=SECRET_KEY,
-        redirect_uri=REDIRECT_URI,
-        response_type="code",
-        grant_type="authorization_code"
+# ==========================
+# CREATE FYERS SESSION
+# ==========================
+session = fyersModel.SessionModel(
+    client_id=CLIENT_ID,
+    secret_key=SECRET_KEY,
+    redirect_uri=REDIRECT_URI,
+    response_type="code",
+    grant_type="authorization_code"
+)
+
+# ==========================
+# LOGIN PAGE
+# ==========================
+if not st.session_state["logged_in"]:
+
+    st.subheader("🔐 Login")
+
+    login_url = session.generate_authcode()
+
+    st.link_button(
+        "🔑 Login with FYERS",
+        login_url,
+        use_container_width=True
     )
 
-st.title("📈 Fyers Trading Dashboard")
-
-# ==================================================
-# LOGIN
-# ==================================================
-if "access_token" not in st.session_state:
     params = st.query_params
-    code = params.get("code")
 
-    if code:
+    if "auth_code" in params:
+
         try:
-            session = get_session()
-            if isinstance(code, list):
-                code = code[0]
-            session.set_token(code)
+
+            auth_code = params["auth_code"]
+
+            session.set_token(auth_code)
+
             response = session.generate_token()
 
-            if isinstance(response, dict) and "access_token" in response:
-                st.session_state["access_token"] = response["access_token"]
-                st.success("Login Successful")
-                st.rerun()
-            else:
-                st.error(response)
-                st.info("Please login again")
-                st.stop()
-        except Exception as e:
-            st.error(f"Login Error: {e}")
-            st.stop()
-    else:
-        session = get_session()
-        auth_url = session.generate_authcode()
-        st.markdown(f"### Login Required\n[🔐 Login With Fyers]({auth_url})")
-        st.stop()
+            if response.get("s") == "ok":
 
-# ==================================================
-# FYERS OBJECT
-# ==================================================
-try:
-    fyers = fyersModel.FyersModel(
-        client_id=CLIENT_ID,
-        token=st.session_state["access_token"],
-        is_async=False,
-        log_path=""
-    )
-except Exception as e:
-    st.error(e)
+                st.session_state["access_token"] = response["access_token"]
+
+                st.session_state["logged_in"] = True
+
+                st.query_params.clear()
+
+                st.success("Login Successful")
+
+                st.rerun()
+
+            else:
+
+                st.error(response)
+
+        except Exception as e:
+
+            st.exception(e)
+
     st.stop()
 
-# ==================================================
-# SIDEBAR MENU
-# ==================================================
-menu = st.sidebar.radio(
-    "Menu",
-    ["Profile", "Funds", "Holdings", "Positions", "Scanner"]
+# ==========================
+# CREATE FYERS OBJECT
+# ==========================
+fyers = fyersModel.FyersModel(
+    client_id=CLIENT_ID,
+    token=st.session_state["access_token"],
+    is_async=False,
+    log_path=""
+)# =====================================================
+# SIDEBAR
+# =====================================================
+
+st.sidebar.image(
+    "https://assets.fyers.in/images/logo.svg",
+    width=180
 )
 
-# ==================================================
-# PROFILE
-# ==================================================
-if menu == "Profile":
-    st.subheader("Profile")
-    try:
-        st.json(fyers.get_profile())
-    except Exception as e:
-        st.error(e)
+st.sidebar.success("✅ Logged in")
 
-# ==================================================
-# FUNDS
-# ==================================================
-elif menu == "Funds":
-    st.subheader("Funds")
-    try:
-        st.json(fyers.funds())
-    except Exception as e:
-        st.error(e)
+st.sidebar.divider()
 
-# ==================================================
-# HOLDINGS
-# ==================================================
-elif menu == "Holdings":
-    st.subheader("Holdings")
-    try:
-        st.json(fyers.holdings())
-    except Exception as e:
-        st.error(e)
-
-# ==================================================
-# POSITIONS
-# ==================================================
-elif menu == "Positions":
-    st.subheader("Positions")
-    try:
-        st.json(fyers.positions())
-    except Exception as e:
-        st.error(e)
-
-# ==================================================
-# NSE SCANNER
-# ==================================================
-elif menu == "Scanner":
-    st.subheader("📊 NSE Scanner")
-
-    stocks = [
-        "RELIANCE.NS", "TCS.NS", "INFY.NS",
-        "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "LT.NS"
+menu = st.sidebar.radio(
+    "Navigation",
+    [
+        "🏠 Dashboard",
+        "📈 Market",
+        "💼 Portfolio",
+        "📋 Orders",
+        "⚙️ Option Chain",
+        "🤖 Scanner",
+        "📊 Charts",
+        "💹 Trading",
+        "👤 Profile",
+        "⚙️ Settings"
     ]
+)
 
-    def calculate_rsi(series, period=14):
-        delta = series.diff()
-        gain = delta.where(delta > 0, 0)
-        loss = -delta.where(delta < 0, 0)
-        avg_gain = gain.rolling(period).mean()
-        avg_loss = loss.rolling(period).mean()
-        rs = avg_gain / avg_loss
-        return 100 - (100 / (1 + rs))
+st.sidebar.divider()
 
-    results = []
-    with st.spinner("Scanning Stocks..."):
-        for stock in stocks:
-            try:
-                df = yf.download(
-                    stock,
-                    period="6mo",
-                    interval="1d",
-                    auto_adjust=True,
-                    progress=False
-                )
-                if len(df) < 50:
-                    continue
+# =====================================================
+# PAGE ROUTING
+# =====================================================
 
-                close = df["Close"]
-                sma20 = close.rolling(20).mean()
-                sma50 = close.rolling(50).mean()
-                rsi = calculate_rsi(close).iloc[-1]
+try:
 
-                current = round(float(close.values[-1]), 2)
-                ma20 = round(float(sma20.values[-1]), 2)
-                ma50 = round(float(sma50.values[-1]), 2)
-                rsi_val = round(float(rsi), 2)
+    if menu == "🏠 Dashboard":
 
-                if current > ma20 and ma20 > ma50 and rsi_val > 60:
-                    signal = "🔥 Strong Bullish"
-                elif current > ma20:
-                    signal = "📈 Bullish"
-                elif rsi_val < 40:
-                    signal = "⚠️ Strong Bearish"
-                else:
-                    signal = "📉 Bearish"
+        show_dashboard(fyers)
 
-                results.append({
-                    "Stock": stock,
-                    "Price": current,
-                    "SMA20": ma20,
-                    "SMA50": ma50,
-                    "RSI": rsi_val,
-                    "Signal": signal
-                })
-            except Exception as e:
-                st.warning(f"{stock}: {e}")
+    elif menu == "📈 Market":
 
-    if results:
-        result_df = pd.DataFrame(results)
-        st.dataframe(result_df, use_container_width=True)
+        show_market(fyers)
 
-        csv = result_df.to_csv(index=False)
-        st.download_button(
-            label="⬇️ Download CSV",
-            data=csv,
-            file_name="scanner_results.csv",
-            mime="text/csv"
+    elif menu == "💼 Portfolio":
+
+        show_portfolio(fyers)
+
+    elif menu == "📋 Orders":
+
+        show_orders(fyers)
+
+    elif menu == "⚙️ Option Chain":
+
+        show_option_chain(fyers)
+
+    elif menu == "🤖 Scanner":
+
+        show_scanner(fyers)
+
+    elif menu == "📊 Charts":
+
+        show_charts(fyers)
+
+    elif menu == "💹 Trading":
+
+        show_trading(fyers)
+
+    elif menu == "👤 Profile":
+
+        show_profile(fyers)
+
+    elif menu == "⚙️ Settings":
+
+        show_settings()
+
+except Exception as e:
+
+    st.error("Error Loading Module")
+
+    st.exception(e# =====================================================
+# SIDEBAR STATUS
+# =====================================================
+
+st.sidebar.divider()
+
+st.sidebar.subheader("📊 Account Status")
+
+try:
+    profile = fyers.get_profile()
+
+    if profile.get("s") == "ok":
+
+        data = profile.get("data", {})
+
+        st.sidebar.success(
+            f"👤 {data.get('display_name', 'FYERS User')}"
         )
-    else:
-        st.error("No stock data found.")
 
-# ==================================================
-# LOGOUT
-# ==================================================
-if st.sidebar.button("Logout"):
-    st.session_state.clear()
+        st.sidebar.caption(
+            f"Client ID : {data.get('fy_id', '-')}"
+        )
+
+except:
+    st.sidebar.warning("Profile not available")
+
+# =====================================================
+# REFRESH
+# =====================================================
+
+if st.sidebar.button("🔄 Refresh Dashboard"):
     st.rerun()
+
+# =====================================================
+# LOGOUT
+# =====================================================
+
+if st.sidebar.button("🚪 Logout"):
+
+    st.session_state.clear()
+
+    st.query_params.clear()
+
+    st.success("Logged Out Successfully")
+
+    st.rerun()
+
+# =====================================================
+# FOOTER
+# =====================================================
+
+st.divider()
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.caption("FYERS API V3")
+
+with col2:
+    st.caption("Streamlit Dashboard")
+
+with col3:
+    st.caption("Version 1.0")
+
+st.markdown(
+    """
+    <center>
+    <h5>
+    🚀 FYERS Trading Dashboard
+    </h5>
+
+    Live Market • Portfolio • Orders • Option Chain • Scanner • Charts
+    </center>
+    """,
+    unsafe_allow_html=True
+)
